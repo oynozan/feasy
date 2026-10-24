@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { EXPLORER } from "@/lib/chain";
 import { useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
-import { pop, springy } from "@/lib/motion";
+import { pop, rise, springy } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Chip, ChipRow, Eyebrow, FigureRow, Press } from "../block";
 
 // About twice a padded deposit's gas limit, left in the wallet so the deposit itself can pay for gas
@@ -102,6 +102,8 @@ function AmountForm({ title, source, verb, busy, done, over, max, blocked, tx, o
     const { openConnectModal } = useConnectModal();
     const [text, setText] = useState("");
     const input = useRef<HTMLInputElement>(null);
+    const [hovered, setHovered] = useState(false);
+    const [focused, setFocused] = useState(false);
     const amount = parseAmount(text);
     const working = tx.status === "wallet" || tx.status === "pending";
     const tooMuch = !!amount && max !== undefined && amount > max;
@@ -134,33 +136,20 @@ function AmountForm({ title, source, verb, busy, done, over, max, blocked, tx, o
                     <BlockLabel>{title}</BlockLabel>
                     <CloseButton />
                 </BlockHeader>
-                {/* The whole pane focuses the amount, so a click anywhere in it starts typing */}
+                {/* The whole pane focuses the amount, its figure sits level with the balance figure */}
                 <div
-                    className="-mx-3 mt-5 cursor-text rounded-tile bg-secondary px-3 py-3"
+                    className="-mx-3 mt-13 cursor-text rounded-tile bg-secondary px-3 py-3"
                     onClick={(event) => {
                         if (!(event.target as HTMLElement).closest("button")) input.current?.focus();
                     }}
+                    onPointerEnter={() => setHovered(true)}
+                    onPointerLeave={() => setHovered(false)}
+                    onFocus={() => setFocused(true)}
+                    onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+                    }}
                 >
-                    <Eyebrow className="mt-0">
-                        <span>{source}</span>
-                        <span className="text-foreground tabular-nums">
-                            {max === undefined || !isConnected ? "–" : `${formatBtc(max)} BTC`}
-                        </span>
-                        {isConnected && !!max && (
-                            <Press className="ml-auto">
-                                <button
-                                    type="button"
-                                    disabled={working}
-                                    onClick={() => edit(formatBtc(max))}
-                                    className="h-6 rounded-full bg-card px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                                >
-                                    Max
-                                </button>
-                            </Press>
-                        )}
-                    </Eyebrow>
-                    <FigureRow>
-                        <span className="sr-only">Amount in BTC</span>
+                    <FigureRow className="mt-0">
                         <span className="flex min-w-0 items-baseline">
                             <input
                                 ref={input}
@@ -176,6 +165,37 @@ function AmountForm({ title, source, verb, busy, done, over, max, blocked, tx, o
                             <span className="ml-2 text-[18px] text-muted-foreground">BTC</span>
                         </span>
                     </FigureRow>
+                    <AnimatePresence initial={false}>
+                        {(hovered || focused) && (
+                            <motion.div
+                                key="available"
+                                className="overflow-hidden"
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={rise}
+                            >
+                                <Eyebrow className="mt-2">
+                                    <span>{source}</span>
+                                    <span className="text-foreground tabular-nums">
+                                        {max === undefined || !isConnected ? "–" : `${formatBtc(max)} BTC`}
+                                    </span>
+                                    {isConnected && !!max && (
+                                        <Press className="ml-auto">
+                                            <button
+                                                type="button"
+                                                disabled={working}
+                                                onClick={() => edit(formatBtc(max))}
+                                                className="h-6 rounded-full bg-card px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                                            >
+                                                Max
+                                            </button>
+                                        </Press>
+                                    )}
+                                </Eyebrow>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
                 <ChipRow>
                     <AnimatePresence mode="popLayout" initial={false}>

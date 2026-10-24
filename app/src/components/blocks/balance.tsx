@@ -9,10 +9,10 @@ import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useHistory, useSignedOut, useVault, type Bar } from "@/lib/hooks";
+import { useHistory, useSignedOut, useVault, useWalletBtc, type Bar } from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
 import { flow, grow, rise } from "@/lib/motion";
-import { Block, BlockHeader, Chip, ChipRow, Eyebrow, FigureRow, Press, Reveal } from "../block";
+import { Block, BlockHeader, Chip, Eyebrow, FigureRow, Press, Reveal } from "../block";
 import { Wordmark } from "../frame";
 import { Magnet } from "../magnet";
 
@@ -63,37 +63,51 @@ function SignedOut() {
 
 function SignedIn() {
     const { data } = useVault();
+    const wallet = useWalletBtc();
     const history = useHistory().data;
     const [pointed, setPointed] = useState<number | null>(null);
     const bar = pointed !== null ? history?.bars[pointed] : undefined;
-    const shown = bar?.btc ?? data?.position;
+    const pool = bar?.pool ?? data?.position;
+    const inWallet = bar?.wallet ?? wallet;
+    const ready = pool !== undefined && inWallet !== undefined;
     // Both sides come from the same history read, so a fresh deposit never shows up as a gain
     const last = history?.bars.at(-1);
-    const earned = history && last && history.deposited > 0n ? last.btc - history.deposited : null;
+    const earned = history && last && history.deposited > 0n ? last.pool - history.deposited : null;
 
     return (
         <>
-            <Eyebrow>{bar ? when.format(bar.time * 1000) : "Your BTC"}</Eyebrow>
-            <FigureRow>
-                <Reveal ready={shown !== undefined} placeholder={<Skeleton className="h-10 w-60" />}>
-                    <BtcFigure wei={shown ?? 0n} />
-                </Reveal>
-            </FigureRow>
-            <ChipRow>
+            <Eyebrow>
+                {bar ? when.format(bar.time * 1000) : "Your BTC"}
                 <AnimatePresence mode="popLayout" initial={false}>
                     {earned !== null && !bar && (
-                        <Chip key="earned" tone={earned >= 0n ? "gain" : "flat"}>
+                        <Chip
+                            key="earned"
+                            tone={earned >= 0n ? "gain" : "flat"}
+                            className="ml-auto h-6 gap-1 px-2.5 text-[13px]"
+                        >
                             {earned >= 0n ? (
-                                <ArrowUpRightIcon className="size-4" />
+                                <ArrowUpRightIcon className="size-3.5" />
                             ) : (
-                                <ArrowDownRightIcon className="size-4" />
+                                <ArrowDownRightIcon className="size-3.5" />
                             )}
                             {earned >= 0n ? "+" : ""}
-                            {formatBtc(earned)} BTC
+                            {formatBtc(earned)}
                         </Chip>
                     )}
                 </AnimatePresence>
-            </ChipRow>
+            </Eyebrow>
+            <FigureRow>
+                <Reveal ready={ready} placeholder={<Skeleton className="h-10 w-60" />}>
+                    <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n)} />
+                </Reveal>
+            </FigureRow>
+            <dl
+                data-row="chip"
+                className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 text-[15px] leading-6 text-muted-foreground"
+            >
+                <Part label="Wallet" wei={inWallet} />
+                <Part label="Pool" wei={pool} />
+            </dl>
             <Bars bars={history?.bars} pointed={pointed} onPoint={setPointed} />
             <div className="mt-6 grid grid-cols-2 gap-2">
                 <Press>
@@ -107,6 +121,26 @@ function SignedIn() {
                     </Button>
                 </Press>
             </div>
+        </>
+    );
+}
+
+// One side of the total, quieter and smaller than it
+function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
+    return (
+        <>
+            <dt>{label}</dt>
+            <dd className="tabular-nums">
+                {wei === undefined ? (
+                    "–"
+                ) : (
+                    <NumberFlow
+                        {...flow}
+                        value={Number(wei) / 1e18}
+                        format={{ minimumFractionDigits: 8, maximumFractionDigits: 8 }}
+                    />
+                )}
+            </dd>
         </>
     );
 }
@@ -172,7 +206,7 @@ function Bars({
     pointed: number | null;
     onPoint: (index: number | null) => void;
 }) {
-    const values = bars && bars.length > 1 ? bars.map((b) => Number(b.btc)) : null;
+    const values = bars && bars.length > 1 ? bars.map((b) => Number(b.pool + b.wallet)) : null;
     const high = values ? Math.max(...values) : 0;
     const active = values ? (pointed ?? values.length - 1) : null;
 

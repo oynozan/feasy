@@ -85,9 +85,9 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
     );
 }
 
-export function FigureRow({ children }: { children: ReactNode }) {
+export function FigureRow({ children, className }: { children: ReactNode; className?: string }) {
     return (
-        <div data-row="figure" className="mt-2 flex h-12 items-center">
+        <div data-row="figure" className={cn("mt-2 flex h-12 items-center", className)}>
             {children}
         </div>
     );
@@ -101,12 +101,21 @@ export function ChipRow({ children }: { children: ReactNode }) {
     );
 }
 
-export function Chip({ children, tone = "flat" }: { children: ReactNode; tone?: "gain" | "flat" }) {
+export function Chip({
+    children,
+    tone = "flat",
+    className,
+}: {
+    children: ReactNode;
+    tone?: "gain" | "flat";
+    className?: string;
+}) {
     return (
         <motion.span
             className={cn(
                 "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[15px] font-medium whitespace-nowrap tabular-nums",
                 tone === "gain" ? "bg-highlight text-foreground" : "bg-secondary text-muted-foreground",
+                className,
             )}
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}

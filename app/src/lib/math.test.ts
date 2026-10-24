@@ -70,7 +70,7 @@ test("sample blocks", () => {
 test("btc formatting", () => {
     assert.deepEqual(btcParts(59_976_403_567_738_295n), { head: "0.0599", tail: "7640" });
     assert.deepEqual(btcParts(0n), { head: "0.0000", tail: "0000" });
-    assert.equal(formatBtc(60_000_000_000_000_000n), "0.06");
-    assert.equal(formatBtc(-12_000_000_000_000n), "-0.000012");
-    assert.equal(formatBtc(0n), "0");
+    assert.equal(formatBtc(60_000_000_000_000_000n), "0.06000000");
+    assert.equal(formatBtc(-12_000_000_000_000n), "-0.00001200");
+    assert.equal(formatBtc(0n), "0.00000000");
 });

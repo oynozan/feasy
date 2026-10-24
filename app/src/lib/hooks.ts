@@ -165,7 +165,7 @@ export function useBtcHistory() {
 /* History */
 
 export type Activity = { kind: "deposit" | "withdraw"; assets: bigint; time: number; hash: Hash };
-export type Bar = { time: number; btc: bigint };
+export type Bar = { time: number; pool: bigint; wallet: bigint };
 
 // Every vault event since deployment, then the holder's balance sampled along the way
 export function useHistory() {
@@ -241,14 +241,18 @@ export function useHistory() {
                     // ponytail: bar times are spread linearly between the first move and now, blocks run near constant
                     const offset = last === start.block ? 1 : Number(block - start.block) / Number(last - start.block);
                     const time = start.time + span * offset;
-                    if (shares === 0n) return { time, btc: 0n };
-                    const btc = await client!.readContract({
-                        ...vault,
-                        functionName: "convertToAssets",
-                        args: [shares],
-                        blockNumber: block,
-                    });
-                    return { time, btc };
+                    const [wallet, pool] = await Promise.all([
+                        client!.getBalance({ address: address!, blockNumber: block }),
+                        shares === 0n
+                            ? 0n
+                            : client!.readContract({
+                                  ...vault,
+                                  functionName: "convertToAssets",
+                                  args: [shares],
+                                  blockNumber: block,
+                              }),
+                    ]);
+                    return { time, pool, wallet };
                 }),
             );
             return { activity, deposited, bars };

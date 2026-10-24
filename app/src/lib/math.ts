@@ -74,6 +74,6 @@ export function formatBtc(wei: bigint, decimals = 8) {
     const abs = negative ? -wei : wei;
     const sats = abs / 10n ** BigInt(18 - decimals);
     const scale = 10n ** BigInt(decimals);
-    const fraction = (sats % scale).toString().padStart(decimals, "0").replace(/0+$/, "");
-    return `${negative ? "-" : ""}${sats / scale}${fraction ? `.${fraction}` : ""}`;
+    const fraction = (sats % scale).toString().padStart(decimals, "0");
+    return `${negative ? "-" : ""}${sats / scale}.${fraction}`;
 }
