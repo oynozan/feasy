@@ -26,6 +26,7 @@ import {
     type WalletClient,
 } from "viem";
 import { mezoTestnet, sepolia } from "viem/chains";
+import { useAccount } from "wagmi";
 import { vault } from "./chain";
 
 export const BRIDGE_MINUTES = 16;
@@ -89,9 +90,9 @@ export function useTbtc(): {
     account: Address | undefined;
     balance: bigint | undefined;
     min: bigint | undefined;
+    connect: () => void;
 } {
-    const provider = injected();
-    const account = useInjectedAccount(provider);
+    const { provider, account, connect } = useEthereum();
     const balance = useQuery({
         queryKey: ["tbtc-balance", account],
         enabled: !!account,
@@ -103,7 +104,30 @@ export function useTbtc(): {
         staleTime: 60 * 60_000,
         queryFn: () => eth.readContract({ ...mezoBridge, functionName: "minTBTCAmount" }),
     }).data;
-    return { available: !!provider, account, balance: account ? balance : undefined, min };
+    return { available: !!provider, account, balance: account ? balance : undefined, min, connect };
+}
+
+// Signs with the connected EVM wallet when there is one, window.ethereum may belong to another
+function useEthereum() {
+    const { connector, address } = useAccount();
+    const evm = !!connector && typeof (connector as { getBitcoinProvider?: unknown }).getBitcoinProvider !== "function";
+    const provider =
+        useQuery({
+            queryKey: ["ethereum-provider", evm ? connector.uid : "injected"],
+            staleTime: Infinity,
+            structuralSharing: false,
+            queryFn: async () => (evm ? ((await connector.getProvider()) as EIP1193Provider) : (injected() ?? null)),
+        }).data ?? undefined;
+    const [asked, setAsked] = useState<Address>();
+    const listened = useInjectedAccount(evm ? undefined : provider);
+    const account = evm ? address : (asked ?? listened);
+    const connect = () => {
+        void provider?.request({ method: "eth_requestAccounts" }).then(
+            (accounts) => accounts[0] && setAsked(getAddress(accounts[0])),
+            () => {},
+        );
+    };
+    return { provider, account, connect };
 }
 
 function useInjectedAccount(provider: EIP1193Provider | undefined) {
@@ -140,6 +164,7 @@ export function useBridge(recipient: Address | undefined): {
     reset: () => void;
 } {
     const queryClient = useQueryClient();
+    const { provider } = useEthereum();
     const owner = recipient?.toLowerCase();
     const [entry, setEntry] = useState<Entry>(() => ({ owner, state: restore(owner) }));
     if (entry.owner !== owner) setEntry({ owner, state: restore(owner) });
@@ -174,7 +199,6 @@ export function useBridge(recipient: Address | undefined): {
         const target = owner;
         const set = (state: BridgeState) => setEntry(forOwner(target, state));
         const refused = refuse(recipient, amount);
-        const provider = injected();
         if (refused || !recipient) {
             set({ status: "error", message: refused ?? "Connect your Mezo account first." });
             return false;

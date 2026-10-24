@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowPathIcon, ArrowTopRightOnSquareIcon, CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
-import { formatUnits, parseUnits, type EIP1193Provider } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { useAccount, useGasPrice } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { BRIDGE_MINUTES, useBridge, useTbtc, type BridgeState } from "@/lib/bridge";
@@ -76,7 +76,7 @@ export function Deposit() {
                     connect={
                         connectMezo ??
                         (tbtc.available && !tbtc.account
-                            ? { label: "Connect Ethereum wallet", run: requestEthereum }
+                            ? { label: "Connect Ethereum wallet", run: tbtc.connect }
                             : undefined)
                     }
                     tx={asTx(bridge.state)}
@@ -554,12 +554,6 @@ function asTx(state: BridgeState): TxState {
     if (state.status === "locking" || state.status === "arriving") return { status: "pending", hash: state.hash };
     if (state.status === "error") return state;
     return { status: "idle" };
-}
-
-// Asks the injected Ethereum wallet for an account, the bridge hook hears it through accountsChanged
-function requestEthereum() {
-    const ethereum = (window as unknown as { ethereum?: EIP1193Provider }).ethereum;
-    void ethereum?.request({ method: "eth_requestAccounts" }).catch(() => {});
 }
 
 // Digits and one decimal point, at most eight decimals since BTC stops at satoshis
