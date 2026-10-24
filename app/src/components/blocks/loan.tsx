@@ -11,8 +11,8 @@ import { flow, pop } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
 // The chart's drawing size, it runs to the tile's edges and scales with it
-const WIDTH = 276;
-const HEIGHT = 200;
+const WIDTH = 279;
+const HEIGHT = 144;
 const TOP = 12;
 const BOTTOM = 14;
 
@@ -59,7 +59,7 @@ export function Loan() {
             <div className="-mx-6 mt-auto">
                 <Reveal
                     ready={!!history && !!data}
-                    placeholder={<Skeleton className="mx-6 mb-6 h-[150px] rounded-tile" />}
+                    placeholder={<Skeleton className="mx-6 mb-6 h-[120px] rounded-tile" />}
                 >
                     {history && (
                         <PriceChart points={history} lines={[repay, liquidation]} active={active} onPoint={setActive} />

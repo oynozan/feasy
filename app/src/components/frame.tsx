@@ -1,11 +1,17 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
-// One fixed stage height on wide screens, so the left block is the same on every page
-export function Frame({ left, right }: { left: ReactNode; right: ReactNode }) {
+// One fixed stage on wide screens, the balance on the left unless a view takes the whole stage
+export function Frame({ left, right }: { left?: ReactNode; right: ReactNode }) {
     return (
         <main className="flex min-h-dvh items-center justify-center px-4 py-10">
-            <div className="grid w-full max-w-[400px] gap-3 lg:h-[560px] lg:max-w-[976px] lg:grid-cols-[400px_1fr]">
-                <div className="flex min-h-[480px] flex-col *:flex-1 lg:min-h-0">{left}</div>
+            <div
+                className={cn(
+                    "grid w-full max-w-[400px] gap-3 lg:h-[560px] lg:max-w-[976px]",
+                    left && "lg:grid-cols-[400px_1fr]",
+                )}
+            >
+                {left && <div className="flex min-h-[480px] flex-col *:flex-1 lg:min-h-0">{left}</div>}
                 <div className="relative flex min-h-0 flex-col *:flex-1">{right}</div>
             </div>
         </main>

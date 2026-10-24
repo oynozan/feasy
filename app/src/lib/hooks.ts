@@ -272,7 +272,7 @@ export type TxState =
     | { status: "wallet" }
     | { status: "pending"; hash: Hash }
     | { status: "done"; hash: Hash }
-    | { status: "error"; message: string };
+    | { status: "error"; message: string; hash?: Hash };
 
 type VaultCall =
     | { functionName: "depositBTC"; args: readonly [Address]; value: bigint }
@@ -308,12 +308,12 @@ function useTxState() {
     async function send(call: VaultCall) {
         if (!client || !address) return false;
         setState({ status: "wallet" });
+        let hash: Hash | undefined;
         try {
             // VaultCall already pins each call's shape, viem just cannot narrow the union
             const request = { ...vault, ...call, account: address } as Parameters<typeof client.simulateContract>[0];
             // Mezo's gas estimate drops revert data while eth_call keeps it, so a doomed call fails here with its reason
             await client.simulateContract(request);
-            let hash: Hash;
             if (isBitcoinWallet(connector)) {
                 // OrangeKit signs with the Bitcoin wallet and relays through its smart account, writeContract skips that
                 const data = encodeFunctionData(request as Parameters<typeof encodeFunctionData>[0]);
@@ -335,7 +335,9 @@ function useTxState() {
             setState({ status: "done", hash });
             return true;
         } catch (error) {
-            setState(errorState(error));
+            // A hash means it failed on chain, so the steps show the confirm step red and keep the link
+            const failed = errorState(error);
+            setState(failed.status === "error" && hash ? { ...failed, hash } : failed);
             return false;
         } finally {
             void queryClient.invalidateQueries();

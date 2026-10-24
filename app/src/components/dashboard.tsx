@@ -9,7 +9,8 @@ import { Activity, HowItWorks } from "./blocks/activity";
 import { Deposit, Withdraw } from "./blocks/amount";
 import { Balance } from "./blocks/balance";
 import { Loan } from "./blocks/loan";
-import { PoolSize, Yield } from "./blocks/yield";
+import { PoolView } from "./blocks/pool";
+import { PoolSize, PoolStats, Yield } from "./blocks/yield";
 import { Frame } from "./frame";
 
 // The balance stays put on the left, only the right side changes with the URL
@@ -33,23 +34,30 @@ export function Dashboard() {
     return (
         <MotionConfig reducedMotion="user">
             <Frame
-                left={<Balance />}
+                left={pathname === "/pool" ? undefined : <Balance />}
                 right={
                     <AnimatePresence mode="popLayout" initial={false}>
-                        {pathname === "/deposit" ? (
-                            <View key="deposit">
+                        {pathname === "/pool" ? (
+                            <View key="pool">
+                                <PoolView />
+                            </View>
+                        ) : pathname === "/deposit" ? (
+                            <View key="deposit" family>
                                 <Deposit />
                             </View>
                         ) : pathname === "/withdraw" ? (
-                            <View key="withdraw">
+                            <View key="withdraw" family>
                                 <Withdraw />
                             </View>
                         ) : (
-                            <View key="home">
-                                <div className="grid shrink-0 gap-3 sm:grid-cols-2 lg:h-[284px] lg:grid-rows-2 [&>*]:min-h-[136px]">
+                            <View key="home" family>
+                                <div className="grid shrink-0 gap-1.5 sm:grid-cols-2 lg:h-[278px] lg:grid-rows-2 [&>*]:min-h-[136px]">
                                     <Yield />
-                                    <div className="sm:row-span-2">
-                                        <Loan />
+                                    <div className="flex flex-col gap-1.5 sm:row-span-2">
+                                        <div className="flex-1">
+                                            <Loan />
+                                        </div>
+                                        <PoolStats />
                                     </div>
                                     <PoolSize />
                                 </div>

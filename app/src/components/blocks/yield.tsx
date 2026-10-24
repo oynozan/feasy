@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import NumberFlow from "@number-flow/react";
+import { ArrowRightIcon } from "@heroicons/react/20/solid";
+import { motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVault, useYield } from "@/lib/hooks";
 import { btcParts } from "@/lib/math";
-import { flow } from "@/lib/motion";
+import { flow, springy } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
 const figure = "font-heading text-[34px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums";
@@ -24,7 +27,7 @@ export function Yield() {
                         <NumberFlow
                             {...flow}
                             value={value ?? 0}
-                            format={{ style: "percent", maximumFractionDigits: 2 }}
+                            format={{ style: "percent", minimumFractionDigits: 2, maximumFractionDigits: 2 }}
                         />
                     </p>
                 </Reveal>
@@ -51,6 +54,23 @@ export function PoolSize() {
                 </Reveal>
             </div>
         </Block>
+    );
+}
+
+// Half a tile tall and gold, the whole tile is the link to the pool view
+export function PoolStats() {
+    return (
+        <motion.div className="shrink-0 lg:h-[68px]" whileHover="hover" whileTap={{ scale: 0.97 }} transition={springy}>
+            <Link
+                href="/pool"
+                className="flex h-full min-h-[68px] items-center justify-between rounded-block bg-gold px-6 text-base font-medium text-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--gold),var(--white)_16%)]"
+            >
+                Pool stats
+                <motion.span variants={{ hover: { x: 5 } }} transition={springy}>
+                    <ArrowRightIcon className="size-5" />
+                </motion.span>
+            </Link>
+        </motion.div>
     );
 }
 

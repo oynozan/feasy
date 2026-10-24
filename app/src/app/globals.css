@@ -31,6 +31,7 @@
     --font-heading: "Akt", var(--font-google-sans), system-ui, sans-serif;
     --radius-block: 34px;
     --radius-tile: 22px;
+    --radius-inner: 14px;
 }
 
 :root {
@@ -110,6 +111,16 @@
     }
 }
 
+/* RainbowKit sets heavy weights on each element, these bring its modals to the app's type */
+[data-rk] [role="dialog"] * {
+    font-weight: 500;
+}
+[data-rk] [role="dialog"] h1 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
 /* A soft light sweep for placeholders, still for people who ask for less motion */
 .shimmer {
     background: linear-gradient(
@@ -136,4 +147,14 @@
     .shimmer {
         animation: none;
     }
+}
+
+/* A family of blocks reads as one rounded shape, its blocks meet with tight corners */
+[data-family] {
+    overflow: hidden;
+    border-radius: var(--radius-block);
+}
+
+[data-family] .rounded-block {
+    border-radius: var(--radius-inner);
 }

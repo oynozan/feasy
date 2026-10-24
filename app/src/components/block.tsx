@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { QuestionMarkCircleIcon } from "@heroicons/react/16/solid";
+import Link from "next/link";
+import { QuestionMarkCircleIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { AnimatePresence, motion } from "motion/react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { pop, rise, springy } from "@/lib/motion";
@@ -40,7 +42,7 @@ export function BlockLabel({ children, tip }: { children: ReactNode; tip?: React
 }
 
 // A question mark that explains its block in a plain sentence, opened by hover, focus or tap
-function InfoTip({ children }: { children: ReactNode }) {
+export function InfoTip({ children }: { children: ReactNode }) {
     const [open, setOpen] = useState(false);
     return (
         <Tooltip open={open} onOpenChange={setOpen}>
@@ -180,16 +182,30 @@ export function Reveal({
 }
 
 // One right-side view, rising in when it is picked and sinking out when it is left
-export function View({ children }: { children: ReactNode }) {
+export function View({ children, family }: { children: ReactNode; family?: boolean }) {
     return (
         <motion.div
-            className="flex h-full flex-col gap-3 [&>*:last-child]:flex-1"
+            data-family={family ? "" : undefined}
+            className={cn("flex h-full flex-col [&>*:last-child]:flex-1", family ? "gap-1.5" : "gap-3")}
             initial={{ opacity: 0, y: 28, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -16, scale: 0.97, transition: { duration: 0.16 } }}
             transition={rise}
         >
             {children}
+        </motion.div>
+    );
+}
+
+// Back to the home blocks, turning a quarter on hover
+export function CloseButton() {
+    return (
+        <motion.div whileHover={{ rotate: 90, scale: 1.06 }} whileTap={{ scale: 0.9 }} transition={springy}>
+            <Button asChild variant="secondary" size="icon" aria-label="Close">
+                <Link href="/">
+                    <XMarkIcon />
+                </Link>
+            </Button>
         </motion.div>
     );
 }
