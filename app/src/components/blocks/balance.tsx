@@ -7,64 +7,89 @@ import { ArrowDownRightIcon, ArrowUpRightIcon } from "@heroicons/react/16/solid"
 import { useBitcoinAccount } from "@mezo-org/orangekit";
 import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
-import { Bar, BarChart, Cell, YAxis } from "recharts";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
-import { ChartContainer } from "@/components/ui/chart";
-import { useHistory, useVault, type Bar as HistoryBar } from "@/lib/hooks";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useHistory, useVault, type Bar } from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
-import { Block, rise } from "../block";
+import { flow, grow, rise } from "@/lib/motion";
+import { Block, BlockHeader, Chip, ChipRow, Eyebrow, FigureRow, Press, Reveal } from "../block";
+import { Wordmark } from "../frame";
+import { Magnet } from "../magnet";
 
-const pop = { type: "spring", visualDuration: 0.3, bounce: 0.35 } as const;
+const BARS = 32;
 
 const when = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function Balance() {
-    const { isConnected } = useAccount();
+    const { status } = useAccount();
+    // A wallet that is still reconnecting reads as connected, so the signed-out pitch never flashes
+    const signedOut = status === "disconnected";
+
     return (
-        <motion.div layout transition={rise} className="flex">
-            <Block className="flex-1 items-center justify-center text-center">
-                {isConnected ? <Connected /> : <Disconnected />}
-            </Block>
-        </motion.div>
+        <Block>
+            <BlockHeader>
+                <Wordmark />
+                {!signedOut && <WalletPill />}
+            </BlockHeader>
+            <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                    key={signedOut ? "out" : "in"}
+                    className="flex flex-1 flex-col"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8, transition: { duration: 0.12 } }}
+                    transition={rise}
+                >
+                    {signedOut ? <SignedOut /> : <SignedIn />}
+                </motion.div>
+            </AnimatePresence>
+        </Block>
     );
 }
 
-function Disconnected() {
+function SignedOut() {
     const { openConnectModal } = useConnectModal();
     return (
-        <div className="flex flex-col items-center gap-8 py-10">
-            <p className="max-w-[12ch] font-heading text-[40px] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
-                Deposit BTC, get more BTC.
+        <>
+            <Eyebrow>BTC savings pool on Mezo</Eyebrow>
+            <p className="mt-2 font-heading text-[44px] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+                Earn BTC on your BTC.
             </p>
-            <Button size="lg" className="h-12 px-6 text-base" onClick={openConnectModal}>
-                Connect wallet
-            </Button>
-        </div>
+            <p className="mt-4 text-[15px] leading-6 text-muted-foreground">
+                The pool borrows MUSD against its BTC at Mezo’s fixed rate and earns the MUSD savings rate. The gap
+                comes back to you as more BTC.
+            </p>
+            <Press className="mt-auto pt-6">
+                <Button size="lg" className="h-12 text-base" onClick={openConnectModal}>
+                    Connect wallet
+                </Button>
+            </Press>
+        </>
     );
 }
 
-function Connected() {
+function SignedIn() {
     const { data } = useVault();
     const history = useHistory().data;
     const [pointed, setPointed] = useState<number | null>(null);
     const bar = pointed !== null ? history?.bars[pointed] : undefined;
     const shown = bar?.btc ?? data?.position;
-    const earned = data && history && history.deposited > 0n ? data.position - history.deposited : null;
+    // Both sides come from the same history read, so a fresh deposit never shows up as a gain
+    const last = history?.bars.at(-1);
+    const earned = history && last && history.deposited > 0n ? last.btc - history.deposited : null;
 
     return (
-        <div className="flex w-full flex-1 flex-col items-center">
-            <WalletPill />
-            {shown === undefined ? (
-                <div className="mt-8 h-14 w-56 animate-pulse rounded-full bg-secondary" />
-            ) : (
-                <BtcFigure wei={shown} />
-            )}
-            <div className="mt-3 flex h-8 items-center">
+        <>
+            <Eyebrow>{bar ? when.format(bar.time * 1000) : "Your BTC"}</Eyebrow>
+            <FigureRow>
+                <Reveal ready={shown !== undefined} placeholder={<Skeleton className="h-10 w-60" />}>
+                    <BtcFigure wei={shown ?? 0n} />
+                </Reveal>
+            </FigureRow>
+            <ChipRow>
                 <AnimatePresence mode="popLayout" initial={false}>
-                    {bar ? (
-                        <Chip key="when">{when.format(bar.time * 1000)}</Chip>
-                    ) : earned !== null ? (
+                    {earned !== null && !bar && (
                         <Chip key="earned" tone={earned >= 0n ? "gain" : "flat"}>
                             {earned >= 0n ? (
                                 <ArrowUpRightIcon className="size-4" />
@@ -72,23 +97,25 @@ function Connected() {
                                 <ArrowDownRightIcon className="size-4" />
                             )}
                             {earned >= 0n ? "+" : ""}
-                            {formatBtc(earned)} BTC
+                            {formatBtc(earned)} BTC {earned >= 0n ? "earned" : "so far"}
                         </Chip>
-                    ) : null}
+                    )}
                 </AnimatePresence>
+            </ChipRow>
+            <Bars bars={history?.bars} pointed={pointed} onPoint={setPointed} />
+            <div className="mt-6 grid grid-cols-2 gap-2">
+                <Press>
+                    <Button asChild size="lg" className="h-12 text-base">
+                        <Link href="/deposit">Deposit</Link>
+                    </Button>
+                </Press>
+                <Press>
+                    <Button asChild size="lg" variant="secondary" className="h-12 text-base">
+                        <Link href="/withdraw">Withdraw</Link>
+                    </Button>
+                </Press>
             </div>
-            <div className="mt-7 grid w-full grid-cols-2 gap-2">
-                <Button asChild size="lg" className="h-12 text-base">
-                    <Link href="/deposit">Deposit</Link>
-                </Button>
-                <Button asChild size="lg" variant="secondary" className="h-12 text-base">
-                    <Link href="/withdraw">Withdraw</Link>
-                </Button>
-            </div>
-            {history && history.bars.length > 1 && (
-                <BalanceChart bars={history.bars} pointed={pointed} onPoint={setPointed} />
-            )}
-        </div>
+        </>
     );
 }
 
@@ -96,16 +123,26 @@ function WalletPill() {
     const { btcAddress } = useBitcoinAccount();
     return (
         <ConnectButton.Custom>
-            {({ account, chain, openAccountModal, openChainModal }) =>
-                chain?.unsupported ? (
-                    <Button variant="secondary" onClick={openChainModal}>
-                        Switch to Mezo
-                    </Button>
+            {({ account, chain, mounted, openAccountModal, openChainModal }) =>
+                !mounted || !account ? (
+                    <Skeleton className="h-9 w-32" />
                 ) : (
-                    <Button variant="secondary" onClick={openAccountModal} className="gap-2 px-4">
-                        <span aria-hidden="true" className="size-2 rounded-full bg-gold" />
-                        {btcAddress ? `${btcAddress.slice(0, 6)}…${btcAddress.slice(-4)}` : account?.displayName}
-                    </Button>
+                    <Magnet padding={24} magnetStrength={4}>
+                        <Press>
+                            {chain?.unsupported ? (
+                                <Button variant="secondary" onClick={openChainModal}>
+                                    Switch to Mezo
+                                </Button>
+                            ) : (
+                                <Button variant="secondary" onClick={openAccountModal} className="gap-2 px-4">
+                                    <span aria-hidden="true" className="size-2 rounded-full bg-gold" />
+                                    {btcAddress
+                                        ? `${btcAddress.slice(0, 6)}…${btcAddress.slice(-4)}`
+                                        : account.displayName}
+                                </Button>
+                            )}
+                        </Press>
+                    </Magnet>
                 )
             }
         </ConnectButton.Custom>
@@ -116,70 +153,64 @@ function WalletPill() {
 function BtcFigure({ wei }: { wei: bigint }) {
     const { head, tail } = btcParts(wei);
     return (
-        <p className="mt-8 font-heading text-[clamp(34px,1rem+3vw,48px)] leading-none font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums">
-            <NumberFlow value={Number(head)} format={{ minimumFractionDigits: 4, maximumFractionDigits: 4 }} />
+        <p className="font-heading text-[44px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums">
             <NumberFlow
+                {...flow}
+                value={Number(head)}
+                format={{ minimumFractionDigits: 4, maximumFractionDigits: 4 }}
+            />
+            <NumberFlow
+                {...flow}
                 value={Number(tail)}
                 format={{ minimumIntegerDigits: 4, useGrouping: false }}
-                className="text-muted-foreground/50"
+                className="text-muted-foreground"
             />
-            <span className="ml-2 text-[0.42em] tracking-normal text-muted-foreground">BTC</span>
+            <span className="ml-2 text-[18px] tracking-normal text-muted-foreground">BTC</span>
         </p>
     );
 }
 
-function Chip({ children, tone = "flat" }: { children: React.ReactNode; tone?: "gain" | "flat" }) {
-    return (
-        <motion.span
-            className={`inline-flex h-8 items-center gap-1 rounded-full px-3 text-[15px] font-medium tabular-nums ${
-                tone === "gain" ? "bg-second text-foreground" : "bg-secondary text-muted-foreground"
-            }`}
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={pop}
-        >
-            {children}
-        </motion.span>
-    );
-}
-
 // Your BTC at evenly spaced blocks since your first deposit, pointing at a bar rolls the figure to it
-function BalanceChart({
+function Bars({
     bars,
     pointed,
     onPoint,
 }: {
-    bars: HistoryBar[];
+    bars: Bar[] | undefined;
     pointed: number | null;
     onPoint: (index: number | null) => void;
 }) {
-    const data = bars.map((b) => ({ btc: Number(b.btc) / 1e18 }));
-    const active = pointed ?? bars.length - 1;
+    const values = bars && bars.length > 1 ? bars.map((b) => Number(b.btc)) : null;
+    const high = values ? Math.max(...values) : 0;
+    const active = values ? (pointed ?? values.length - 1) : null;
+
+    const point = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!values) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const index = Math.floor(((event.clientX - rect.left) / rect.width) * values.length);
+        onPoint(Math.min(values.length - 1, Math.max(0, index)));
+    };
 
     return (
-        <ChartContainer
-            config={{ btc: { label: "BTC", color: "var(--gold)" } }}
-            className="mt-auto aspect-auto h-[clamp(140px,22vh,200px)] w-full pt-8"
+        <div
             aria-hidden="true"
+            className="mt-6 flex min-h-24 flex-1 touch-pan-y items-end gap-[3px]"
+            onPointerMove={point}
+            onPointerDown={point}
+            onPointerLeave={() => onPoint(null)}
         >
-            <BarChart
-                data={data}
-                margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-                barCategoryGap="22%"
-                onMouseMove={(state) => {
-                    const index = Number(state.activeTooltipIndex);
-                    onPoint(Number.isInteger(index) ? index : null);
-                }}
-                onMouseLeave={() => onPoint(null)}
-            >
-                <YAxis hide domain={[0, "dataMax"]} />
-                <Bar dataKey="btc" radius={4} minPointSize={4} isAnimationActive>
-                    {data.map((_, i) => (
-                        <Cell key={i} fill={i === active ? "var(--gold)" : "var(--second)"} />
-                    ))}
-                </Bar>
-            </BarChart>
-        </ChartContainer>
+            {(values ?? Array.from({ length: BARS }, () => 0)).map((value, i) => (
+                <span key={`${values ? "on" : "off"}-${i}`} className="flex h-full min-w-0 flex-1 items-end">
+                    <motion.span
+                        className={`w-full rounded-full transition-colors duration-150 ${
+                            !values ? "bg-secondary" : i === active ? "bg-gold" : "bg-second/70"
+                        }`}
+                        initial={{ height: "0%" }}
+                        animate={{ height: `${high > 0 ? Math.max(4, (value / high) * 100) : 4}%` }}
+                        transition={{ ...grow, delay: Math.min(i, 40) * 0.012 }}
+                    />
+                </span>
+            ))}
+        </div>
     );
 }

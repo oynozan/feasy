@@ -1,11 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, createElement, useContext, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BaseError, ContractFunctionRevertedError, UserRejectedRequestError, zeroAddress, type Hash } from "viem";
-import { useAccount, useBalance, usePublicClient, useReadContracts, useWriteContract } from "wagmi";
+import { useSendTransaction } from "@mezo-org/orangekit";
+import {
+    BaseError,
+    ChainMismatchError,
+    ContractFunctionRevertedError,
+    encodeFunctionData,
+    InsufficientFundsError,
+    SwitchChainError,
+    UserRejectedRequestError,
+    zeroAddress,
+    type Address,
+    type Hash,
+} from "viem";
+import { mezoTestnet } from "viem/chains";
+import { useAccount, useBalance, usePublicClient, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { priceFeed, rateManager, savings, troveManager, vault, VAULT_FROM_BLOCK } from "./chain";
-import { sampleBlocks, savingsApr, sharesToAssets, type Trove } from "./math";
+import { sampleBlocks, savingsApr, sharesToAssets, vaultYield, type Trove } from "./math";
 
 const WEEK = 7 * 24 * 60 * 60;
 // Mezo testnet averages about 4.6 seconds a block, only used to pick a block a week back
@@ -92,6 +105,13 @@ export function useSavingsApr() {
             return savingsApr(now, then, Number(latest.timestamp - past.timestamp));
         },
     });
+}
+
+// The vault's yearly BTC yield, savings income minus loan interest
+export function useYield() {
+    const { data } = useVault();
+    const apr = useSavingsApr().data;
+    return data && apr !== undefined ? vaultYield({ ...data, savingsApr: apr }) : undefined;
 }
 
 /* History */
@@ -202,47 +222,101 @@ export type TxState =
     | { status: "error"; message: string };
 
 type VaultCall =
-    | { functionName: "depositBTC"; args: readonly [`0x${string}`]; value: bigint }
-    | { functionName: "withdraw" | "redeem"; args: readonly [bigint, `0x${string}`, `0x${string}`] };
+    | { functionName: "depositBTC"; args: readonly [Address]; value: bigint }
+    | { functionName: "withdraw" | "redeem"; args: readonly [bigint, Address, Address] };
+
+class Failed extends Error {}
+
+type Tx = ReturnType<typeof useTxState>;
+
+const TxContext = createContext<Tx | null>(null);
+
+// One transaction at a time, shared by the deposit and withdraw blocks so it survives switching between them
+export function TxProvider({ children }: { children: ReactNode }) {
+    return createElement(TxContext.Provider, { value: useTxState() }, children);
+}
 
 export function useVaultTx() {
+    const tx = useContext(TxContext);
+    if (!tx) throw new Error("useVaultTx needs a TxProvider");
+    return tx;
+}
+
+function useTxState() {
     const client = usePublicClient();
     const queryClient = useQueryClient();
-    const { address } = useAccount();
+    const { address, chainId, connector } = useAccount();
     const { writeContractAsync } = useWriteContract();
+    const { switchChainAsync } = useSwitchChain();
+    const { sendTransaction: sendFromBitcoin } = useSendTransaction();
     const [state, setState] = useState<TxState>({ status: "idle" });
 
+    // Resolves true once the vault call lands, so the form only clears on success
     async function send(call: VaultCall) {
-        if (!client || !address) return;
+        if (!client || !address) return false;
         setState({ status: "wallet" });
         try {
             // VaultCall already pins each call's shape, viem just cannot narrow the union
-            const request = { ...vault, ...call, account: address } as Parameters<typeof client.estimateContractGas>[0];
-            // Mezo underestimates calls through its BTC precompile and bills max(used, limit / 2), so padding is free
-            const gas = ((await client.estimateContractGas(request)) * 3n) / 2n;
-            const hash = await writeContractAsync({ ...request, gas } as Parameters<typeof writeContractAsync>[0]);
+            const request = { ...vault, ...call, account: address } as Parameters<typeof client.simulateContract>[0];
+            // Mezo's gas estimate drops revert data while eth_call keeps it, so a doomed call fails here with its reason
+            await client.simulateContract(request);
+            let hash: Hash;
+            if (isBitcoinWallet(connector)) {
+                // OrangeKit signs with the Bitcoin wallet and relays through its smart account, writeContract skips that
+                const data = encodeFunctionData(request as Parameters<typeof encodeFunctionData>[0]);
+                const sent = await sendFromBitcoin(vault.address, "value" in call ? call.value : 0n, data);
+                if (!sent) throw new Failed("Reconnect your Bitcoin wallet and try again.");
+                hash = sent.hash;
+            } else {
+                if (chainId !== mezoTestnet.id) await switchChainAsync({ chainId: mezoTestnet.id });
+                // Mezo underestimates calls through its BTC precompile and bills max(used, limit / 2), so padding is free
+                const gas = ((await client.estimateContractGas(request as never)) * 3n) / 2n;
+                const write = { ...request, gas, chainId: mezoTestnet.id } as Parameters<typeof writeContractAsync>[0];
+                hash = await writeContractAsync(write);
+            }
             setState({ status: "pending", hash });
             const receipt = await client.waitForTransactionReceipt({ hash });
-            if (receipt.status !== "success") throw new Error("reverted");
+            // A smart account can land while the vault call inside it reverts, so only a vault event counts
+            const ran = receipt.logs.some((log) => log.address.toLowerCase() === vault.address.toLowerCase());
+            if (receipt.status !== "success" || !ran) throw new Failed("The vault call didn't go through.");
             setState({ status: "done", hash });
+            return true;
         } catch (error) {
             setState(errorState(error));
+            return false;
         } finally {
-            await queryClient.invalidateQueries();
+            void queryClient.invalidateQueries();
         }
     }
 
     return { state, send, reset: () => setState({ status: "idle" }) };
 }
 
+function isBitcoinWallet(connector: unknown) {
+    return typeof (connector as { getBitcoinProvider?: unknown } | undefined)?.getBitcoinProvider === "function";
+}
+
+const REVERTS: Record<string, string> = {
+    ERC4626ExceededMaxDeposit: "The pool can't take that much right now.",
+    ERC4626ExceededMaxWithdraw: "That's more than you can withdraw right now.",
+    ERC4626ExceededMaxRedeem: "That's more than you can withdraw right now.",
+    Illiquid: "The pool can't free that much BTC right now.",
+    ZeroShares: "That amount is too small.",
+};
+
 function errorState(error: unknown): TxState {
+    if (error instanceof Failed) return { status: "error", message: error.message };
     if (error instanceof BaseError) {
         if (error.walk((e) => e instanceof UserRejectedRequestError)) return { status: "idle" };
+        if (error.walk((e) => e instanceof ChainMismatchError || e instanceof SwitchChainError)) {
+            return { status: "error", message: "Switch your wallet to Mezo and try again." };
+        }
+        if (error.walk((e) => e instanceof InsufficientFundsError)) {
+            return { status: "error", message: "Not enough BTC left for gas." };
+        }
         const revert = error.walk((e) => e instanceof ContractFunctionRevertedError);
         const name = revert instanceof ContractFunctionRevertedError ? revert.data?.errorName : undefined;
-        if (name?.startsWith("ERC4626ExceededMax"))
-            return { status: "error", message: "That's more than the vault allows right now." };
-        return { status: "error", message: error.shortMessage };
+        if (name && REVERTS[name]) return { status: "error", message: REVERTS[name] };
     }
-    return { status: "error", message: "The transaction failed." };
+    return { status: "error", message: "The transaction didn't go through." };
 }

@@ -1,25 +1,33 @@
 "use client";
 
 import NumberFlow from "@number-flow/react";
-import { useSavingsApr, useVault } from "@/lib/hooks";
-import { vaultYield } from "@/lib/math";
-import { Block, BlockLabel } from "../block";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useYield } from "@/lib/hooks";
+import { flow } from "@/lib/motion";
+import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
 export function Yield() {
-    const { data } = useVault();
-    const apr = useSavingsApr().data;
-    const value = data && apr !== undefined ? vaultYield({ ...data, savingsApr: apr }) : undefined;
+    const value = useYield();
 
     return (
-        <Block className="min-h-[200px] justify-between">
-            <BlockLabel>Yearly yield</BlockLabel>
-            {value === undefined ? (
-                <div className="h-12 w-32 animate-pulse rounded-full bg-secondary" />
-            ) : (
-                <p className="font-heading text-[48px] leading-none font-bold tracking-[-0.03em]">
-                    <NumberFlow value={value} format={{ style: "percent", maximumFractionDigits: 2 }} />
-                </p>
-            )}
+        <Block>
+            <BlockHeader>
+                <BlockLabel>Yearly yield</BlockLabel>
+            </BlockHeader>
+            <div className="mt-auto">
+                <div className="flex h-12 items-center">
+                    <Reveal ready={value !== undefined} placeholder={<Skeleton className="h-10 w-36" />}>
+                        <p className="font-heading text-[44px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap">
+                            <NumberFlow
+                                {...flow}
+                                value={value ?? 0}
+                                format={{ style: "percent", maximumFractionDigits: 2 }}
+                            />
+                        </p>
+                    </Reveal>
+                </div>
+                <p className="mt-3 h-6 text-[15px] leading-6 text-muted-foreground">Paid in BTC, no lock-up</p>
+            </div>
         </Block>
     );
 }

@@ -29,7 +29,6 @@
     --font-heading: "Akt", var(--font-google-sans), system-ui, sans-serif;
     --radius-block: 34px;
     --radius-tile: 22px;
-    --ease-spring: var(--spring);
 }
 
 :root {
@@ -45,49 +44,10 @@
     --primary: var(--gray);
     --primary-foreground: var(--white);
     --secondary: color-mix(in oklab, var(--white), var(--gray) 7%);
-    --muted-foreground: color-mix(in oklab, var(--black) 52%, var(--white));
+    --muted-foreground: color-mix(in oklab, var(--black) 64%, var(--white));
     --border: color-mix(in oklab, var(--white), var(--gray) 12%);
     --destructive: #c2410c;
     --radius: 0.75rem;
-
-    /* A bouncy spring (bounce ~0.3) sampled from Motion's physics, pair it with ~500ms */
-    --spring: linear(
-        0,
-        0.0235,
-        0.0841,
-        0.169,
-        0.2677,
-        0.372,
-        0.4757,
-        0.5744,
-        0.6651,
-        0.7458,
-        0.8157,
-        0.8747,
-        0.9231,
-        0.9617,
-        0.9914,
-        1.0133,
-        1.0287,
-        1.0385,
-        1.0439,
-        1.0459,
-        1.0453,
-        1.0429,
-        1.0391,
-        1.0347,
-        1.0299,
-        1.0252,
-        1.0205,
-        1.0163,
-        1.0125,
-        1.0091,
-        1.0063,
-        1.004,
-        1.0021,
-        1.0007,
-        1
-    );
 
     color-scheme: light;
 }
@@ -105,5 +65,33 @@
     button:not(:disabled),
     [role="button"]:not(:disabled) {
         cursor: pointer;
+    }
+}
+
+/* A soft light sweep for placeholders, still for people who ask for less motion */
+.shimmer {
+    background: linear-gradient(
+            100deg,
+            transparent 30%,
+            color-mix(in oklab, var(--white) 70%, transparent) 50%,
+            transparent 70%
+        )
+        var(--secondary);
+    background-size: 220% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    from {
+        background-position: 120% 0;
+    }
+    to {
+        background-position: -100% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .shimmer {
+        animation: none;
     }
 }

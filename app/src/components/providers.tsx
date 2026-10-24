@@ -26,7 +26,6 @@ const config = getConfig({
     ],
     // Batched so the balance chart's historical reads share one request, Passport types this key wrong
     transports: { [mezoTestnet.id]: http(mezoTestnet.rpcUrls.default.http[0], { batch: true }) } as never,
-    ssr: true,
 });
 
 const queryClient = new QueryClient();

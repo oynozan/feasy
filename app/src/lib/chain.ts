@@ -25,6 +25,11 @@ export const vault = {
         "event Transfer(address indexed from, address indexed to, uint256 value)",
         "event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)",
         "event Withdraw(address indexed sender, address indexed receiver, address indexed owner, uint256 assets, uint256 shares)",
+        "error ERC4626ExceededMaxDeposit(address receiver, uint256 assets, uint256 max)",
+        "error ERC4626ExceededMaxWithdraw(address owner, uint256 assets, uint256 max)",
+        "error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max)",
+        "error Illiquid()",
+        "error ZeroShares()",
     ]),
 } as const;
 
