@@ -12,7 +12,7 @@ import {
 } from "@mezo-org/passport/dist/src/config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mezoTestnet } from "viem/chains";
-import { WagmiProvider } from "wagmi";
+import { http, WagmiProvider } from "wagmi";
 
 const config = getConfig({
     appName: "Feasy",
@@ -24,6 +24,8 @@ const config = getConfig({
         { groupName: "Bitcoin", wallets: [unisatWalletMezoTestnet, okxWalletMezoTestnet, xverseWalletMezoTestnet] },
         { groupName: "Ethereum", wallets: [injectedWallet] },
     ],
+    // Batched so the balance chart's historical reads share one request, Passport types this key wrong
+    transports: { [mezoTestnet.id]: http(mezoTestnet.rpcUrls.default.http[0], { batch: true }) } as never,
     ssr: true,
 });
 
