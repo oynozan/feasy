@@ -321,8 +321,8 @@ function useTxState() {
                 hash = sent.hash;
             } else {
                 if (chainId !== mezoTestnet.id) await switchChainAsync({ chainId: mezoTestnet.id });
-                // Mezo underestimates calls through its BTC precompile and bills max(used, limit / 2), so padding is free
-                const gas = ((await client.estimateContractGas(request as never)) * 3n) / 2n;
+                // The wallet would estimate unpadded on its own RPC, ours is padded in relayer.ts
+                const gas = await client.estimateContractGas(request as never);
                 const write = { ...request, gas, chainId: mezoTestnet.id } as Parameters<typeof writeContractAsync>[0];
                 hash = await writeContractAsync(write);
             }

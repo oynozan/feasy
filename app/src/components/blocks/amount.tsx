@@ -14,8 +14,8 @@ import { formatBtc } from "@/lib/math";
 import { pop, rise, springy } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Chip, ChipRow, Eyebrow, FigureRow, Press } from "../block";
 
-// About twice a padded deposit's gas limit, left in the wallet so the deposit itself can pay for gas
-const GAS_RESERVE = 600_000n;
+// Enough gas for this deposit and a later withdrawal, a Bitcoin wallet's smart account pays both refunds from here
+const GAS_RESERVE = 3_000_000n;
 
 export function Deposit() {
     const { address } = useAccount();
