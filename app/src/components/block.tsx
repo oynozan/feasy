@@ -14,8 +14,12 @@ import { cn } from "@/lib/utils";
  * and the primary action pinned to the bottom edge.
  */
 
-export function Block({ className, children }: { className?: string; children: ReactNode }) {
-    return <Card className={cn("h-full gap-0 rounded-block p-6 shadow-none ring-0", className)}>{children}</Card>;
+export function Block({ className, children, ...rest }: React.ComponentProps<"div">) {
+    return (
+        <Card className={cn("h-full gap-0 rounded-block p-6 shadow-none ring-0", className)} {...rest}>
+            {children}
+        </Card>
+    );
 }
 
 export function BlockHeader({ children }: { children: ReactNode }) {
@@ -70,9 +74,12 @@ function InfoTip({ children }: { children: ReactNode }) {
     );
 }
 
-export function Eyebrow({ children }: { children: ReactNode }) {
+export function Eyebrow({ children, className }: { children: ReactNode; className?: string }) {
     return (
-        <div data-row="eyebrow" className="mt-8 flex h-6 items-center gap-2 text-[15px] text-muted-foreground">
+        <div
+            data-row="eyebrow"
+            className={cn("mt-8 flex h-6 items-center gap-2 text-[15px] text-muted-foreground", className)}
+        >
             {children}
         </div>
     );

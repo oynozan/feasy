@@ -25,8 +25,6 @@
     --color-second: var(--second);
     --color-danger: var(--danger);
     --color-highlight: var(--highlight);
-    --color-track: var(--track);
-    --color-safe: var(--safe);
     --color-chart-1: var(--gold);
     --color-chart-2: var(--second);
     --font-sans: var(--font-google-sans), system-ui, sans-serif;
@@ -54,38 +52,27 @@
     --destructive: #c2410c;
     --radius: 0.75rem;
     --highlight: var(--second);
-    --track: color-mix(in oklab, var(--second) 45%, transparent);
-    --safe: var(--gold);
-
-    transition:
-        --background 0.6s ease,
-        --card 0.6s ease,
-        --secondary 0.6s ease,
-        --muted-foreground 0.6s ease,
-        --highlight 0.6s ease,
-        --track 0.6s ease,
-        --safe 0.6s ease;
 
     color-scheme: light;
 }
 
-/* Before a wallet connects the page wears the gold, connecting fades it back to white */
-:root[data-theme="pool"] {
-    --background: var(--second);
+/* Before a wallet connects the balance block wears the gold, connecting fades it back to white */
+:root[data-guest] [data-balance] {
     --card: var(--gold);
     --secondary: color-mix(in oklab, var(--gold), var(--white) 32%);
     --muted-foreground: color-mix(in oklab, var(--black) 76%, var(--gold));
     --highlight: color-mix(in oklab, var(--white) 55%, var(--gold));
-    --track: color-mix(in oklab, var(--black) 14%, transparent);
-    --safe: var(--gray);
 }
 
-/* Registered so the theme switch can interpolate them */
-@property --background {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #eee9ee;
+[data-balance] {
+    transition:
+        --card 0.6s ease,
+        --secondary 0.6s ease,
+        --muted-foreground 0.6s ease,
+        --highlight 0.6s ease;
 }
+
+/* Registered so the switch can interpolate them */
 @property --card {
     syntax: "<color>";
     inherits: true;
@@ -105,16 +92,6 @@
     syntax: "<color>";
     inherits: true;
     initial-value: #ffdb79;
-}
-@property --safe {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: #f5b400;
-}
-@property --track {
-    syntax: "<color>";
-    inherits: true;
-    initial-value: transparent;
 }
 
 @layer base {

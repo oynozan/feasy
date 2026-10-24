@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowPathIcon, ArrowTopRightOnSquareIcon, CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
@@ -9,7 +9,7 @@ import { parseUnits, type Hash } from "viem";
 import { useAccount, useGasPrice } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { EXPLORER } from "@/lib/chain";
-import { useVault, useVaultTx, useWalletBtc, useYield, type TxState } from "@/lib/hooks";
+import { useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
 import { pop, springy } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Chip, ChipRow, Eyebrow, FigureRow, Press } from "../block";
@@ -22,7 +22,6 @@ export function Deposit() {
     const wallet = useWalletBtc();
     const gasPrice = useGasPrice().data;
     const { data } = useVault();
-    const rate = useYield();
     const tx = useVaultTx();
 
     const reserve = GAS_RESERVE * (gasPrice ?? 0n);
@@ -33,19 +32,13 @@ export function Deposit() {
     return (
         <AmountForm
             title="Deposit BTC"
-            source="In your wallet"
-            note="Your BTC joins the pool and grows with it. Withdraw anytime, earnings included."
+            source="Wallet"
             verb="Deposit"
             busy="Depositing"
             done="Deposited"
             over="Not enough BTC"
             max={max}
             blocked={blocked}
-            estimate={(amount) => {
-                if (rate === undefined) return undefined;
-                const yearly = (amount * BigInt(Math.round(rate * 1e6))) / 1_000_000n;
-                return `≈ ${yearly >= 0n ? "+" : ""}${formatBtc(yearly)} BTC a year`;
-            }}
             tx={tx.state}
             onEdit={tx.reset}
             onSubmit={(amount) => tx.send({ functionName: "depositBTC", args: [address!], value: amount })}
@@ -69,8 +62,7 @@ export function Withdraw() {
     return (
         <AmountForm
             title="Withdraw BTC"
-            source="Available now"
-            note="The pool repays part of its loan from savings to free your BTC. No BTC is sold."
+            source="Available"
             verb="Withdraw"
             busy="Withdrawing"
             done="Withdrawn"
@@ -94,37 +86,22 @@ export function Withdraw() {
 type AmountFormProps = {
     title: string;
     source: string;
-    note: string;
     verb: string;
     busy: string;
     done: string;
     over: string;
     max: bigint | undefined;
     blocked: string | undefined;
-    estimate?: (amount: bigint) => string | undefined;
     tx: TxState;
     onEdit: () => void;
     onSubmit: (amount: bigint) => Promise<boolean>;
 };
 
-function AmountForm({
-    title,
-    source,
-    note,
-    verb,
-    busy,
-    done,
-    over,
-    max,
-    blocked,
-    estimate,
-    tx,
-    onEdit,
-    onSubmit,
-}: AmountFormProps) {
+function AmountForm({ title, source, verb, busy, done, over, max, blocked, tx, onEdit, onSubmit }: AmountFormProps) {
     const { isConnected } = useAccount();
     const { openConnectModal } = useConnectModal();
     const [text, setText] = useState("");
+    const input = useRef<HTMLInputElement>(null);
     const amount = parseAmount(text);
     const working = tx.status === "wallet" || tx.status === "pending";
     const tooMuch = !!amount && max !== undefined && amount > max;
@@ -157,48 +134,55 @@ function AmountForm({
                     <BlockLabel>{title}</BlockLabel>
                     <CloseButton />
                 </BlockHeader>
-                <Eyebrow>
-                    <span>{source}</span>
-                    <span className="text-foreground tabular-nums">
-                        {max === undefined || !isConnected ? "–" : `${formatBtc(max)} BTC`}
-                    </span>
-                    {isConnected && !!max && (
-                        <Press className="ml-auto">
-                            <button
-                                type="button"
-                                disabled={working}
-                                onClick={() => edit(formatBtc(max))}
-                                className="h-6 rounded-full bg-secondary px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                            >
-                                Max
-                            </button>
-                        </Press>
-                    )}
-                </Eyebrow>
-                <FigureRow>
-                    <label className="flex min-w-0 items-baseline">
+                {/* The whole pane focuses the amount, so a click anywhere in it starts typing */}
+                <div
+                    className="-mx-3 mt-5 cursor-text rounded-tile bg-secondary px-3 py-3"
+                    onClick={(event) => {
+                        if (!(event.target as HTMLElement).closest("button")) input.current?.focus();
+                    }}
+                >
+                    <Eyebrow className="mt-0">
+                        <span>{source}</span>
+                        <span className="text-foreground tabular-nums">
+                            {max === undefined || !isConnected ? "–" : `${formatBtc(max)} BTC`}
+                        </span>
+                        {isConnected && !!max && (
+                            <Press className="ml-auto">
+                                <button
+                                    type="button"
+                                    disabled={working}
+                                    onClick={() => edit(formatBtc(max))}
+                                    className="h-6 rounded-full bg-card px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                                >
+                                    Max
+                                </button>
+                            </Press>
+                        )}
+                    </Eyebrow>
+                    <FigureRow>
                         <span className="sr-only">Amount in BTC</span>
-                        <input
-                            inputMode="decimal"
-                            autoComplete="off"
-                            placeholder="0"
-                            value={text}
-                            disabled={working}
-                            onChange={(event) => edit(cleanAmount(event.target.value))}
-                            className="max-w-full min-w-[1ch] bg-transparent font-heading text-[44px] leading-none font-bold tracking-[-0.03em] outline-none [field-sizing:content] placeholder:text-muted-foreground/40"
-                        />
-                        <span className="ml-2 text-[18px] text-muted-foreground">BTC</span>
-                    </label>
-                </FigureRow>
+                        <span className="flex min-w-0 items-baseline">
+                            <input
+                                ref={input}
+                                aria-label="Amount in BTC"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                placeholder="0"
+                                value={text}
+                                disabled={working}
+                                onChange={(event) => edit(cleanAmount(event.target.value))}
+                                className="max-w-full min-w-[1ch] bg-transparent font-heading text-[44px] leading-none font-bold tracking-[-0.03em] outline-none [field-sizing:content] placeholder:text-muted-foreground/40"
+                            />
+                            <span className="ml-2 text-[18px] text-muted-foreground">BTC</span>
+                        </span>
+                    </FigureRow>
+                </div>
                 <ChipRow>
                     <AnimatePresence mode="popLayout" initial={false}>
-                        <TxChip key={chipKey(tx, amount)} tx={tx} done={done} busy={busy}>
-                            {amount && estimate?.(amount)}
-                        </TxChip>
+                        <TxChip key={tx.status} tx={tx} done={done} busy={busy} />
                     </AnimatePresence>
                 </ChipRow>
-                <p className="mt-auto pt-6 text-[15px] leading-6 text-muted-foreground">{note}</p>
-                <Press className="mt-6" disabled={isConnected && !ready}>
+                <Press className="mt-auto" disabled={isConnected && !ready}>
                     <Button
                         type="submit"
                         size="lg"
@@ -223,12 +207,8 @@ function AmountForm({
     );
 }
 
-function chipKey(tx: TxState, amount: bigint | undefined) {
-    return tx.status === "idle" || tx.status === "wallet" ? (amount ? "estimate" : "none") : tx.status;
-}
-
-// The chip row tells the transaction's story once one is sent, and the yearly estimate before that
-function TxChip({ tx, done, busy, children }: { tx: TxState; done: string; busy: string; children: React.ReactNode }) {
+// The chip row tells the transaction's story once one is sent
+function TxChip({ tx, done, busy }: { tx: TxState; done: string; busy: string }) {
     if (tx.status === "error") {
         return (
             <Chip>
@@ -256,7 +236,7 @@ function TxChip({ tx, done, busy, children }: { tx: TxState; done: string; busy:
             </TxLink>
         );
     }
-    return children ? <Chip tone="gain">{children}</Chip> : <span />;
+    return <span />;
 }
 
 function TxLink({ hash, children }: { hash: Hash; children: React.ReactNode }) {

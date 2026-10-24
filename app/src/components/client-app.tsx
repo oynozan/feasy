@@ -15,7 +15,7 @@ function Shell() {
         <div aria-busy="true" aria-label="Loading">
             <Frame
                 left={
-                    <div className={block}>
+                    <div data-balance="" className={block}>
                         <div className="flex h-9 items-center">
                             <Wordmark />
                         </div>

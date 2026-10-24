@@ -136,6 +136,32 @@ export function useYield() {
     return data && apr !== undefined ? vaultYield({ ...data, savingsApr: apr }) : undefined;
 }
 
+/* BTC price */
+
+// The last week of BTC's dollar price, hourly, oldest first as [unix ms, USD]
+export function useBtcHistory() {
+    return useQuery({
+        queryKey: ["btc-history"],
+        staleTime: 10 * 60_000,
+        refetchInterval: 10 * 60_000,
+        queryFn: async () => {
+            const end = Math.floor(Date.now() / 1000);
+            const response = await fetch(
+                `https://coins.llama.fi/chart/coingecko:bitcoin?end=${end}&span=168&period=1h`,
+            );
+            if (!response.ok) throw new Error(`DefiLlama answered ${response.status}`);
+            const body = (await response.json()) as {
+                coins: Record<string, { prices: { timestamp: number; price: number }[] }>;
+            };
+            const prices = body.coins["coingecko:bitcoin"]?.prices ?? [];
+            return prices
+                .filter((p) => Number.isFinite(p.price) && p.price > 0)
+                .map((p): [number, number] => [p.timestamp * 1000, p.price])
+                .sort((a, b) => a[0] - b[0]);
+        },
+    });
+}
+
 /* History */
 
 export type Activity = { kind: "deposit" | "withdraw"; assets: bigint; time: number; hash: Hash };

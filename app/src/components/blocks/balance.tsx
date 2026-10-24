@@ -24,7 +24,7 @@ export function Balance() {
     const signedOut = useSignedOut();
 
     return (
-        <Block>
+        <Block data-balance="">
             <BlockHeader>
                 <Wordmark />
                 {!signedOut && <WalletPill />}
@@ -49,13 +49,8 @@ function SignedOut() {
     const { openConnectModal } = useConnectModal();
     return (
         <>
-            <Eyebrow>BTC savings pool on Mezo</Eyebrow>
-            <p className="mt-2 font-heading text-[44px] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
+            <p className="mt-8 font-heading text-[44px] leading-[1.05] font-bold tracking-[-0.03em] text-balance">
                 Earn BTC on your BTC.
-            </p>
-            <p className="mt-4 text-[15px] leading-6 text-muted-foreground">
-                The pool borrows MUSD against its BTC at Mezo’s fixed rate and earns the MUSD savings rate. The gap
-                comes back to you as more BTC.
             </p>
             <Press className="mt-auto pt-6">
                 <Button size="lg" className="h-12 text-base" onClick={openConnectModal}>
@@ -94,7 +89,7 @@ function SignedIn() {
                                 <ArrowDownRightIcon className="size-4" />
                             )}
                             {earned >= 0n ? "+" : ""}
-                            {formatBtc(earned)} BTC {earned >= 0n ? "earned" : "so far"}
+                            {formatBtc(earned)} BTC
                         </Chip>
                     )}
                 </AnimatePresence>

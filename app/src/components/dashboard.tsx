@@ -20,8 +20,8 @@ export function Dashboard() {
     const settled = tx.state.status === "done" || tx.state.status === "error";
 
     useEffect(() => {
-        if (signedOut) document.documentElement.dataset.theme = "pool";
-        else delete document.documentElement.dataset.theme;
+        if (signedOut) document.documentElement.dataset.guest = "";
+        else delete document.documentElement.dataset.guest;
     }, [signedOut]);
 
     // A finished transaction's note belongs to the form it came from, a sent one keeps showing everywhere

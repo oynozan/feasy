@@ -23,9 +23,7 @@ export function Activity() {
             </BlockHeader>
             <Reveal ready={!!data} placeholder={<Skeleton className="mt-3 h-14 w-full rounded-tile" />}>
                 {data?.activity.length === 0 ? (
-                    <p className="mt-3 text-[15px] leading-6 text-muted-foreground">
-                        Your deposits and withdrawals show up here.
-                    </p>
+                    <p className="mt-3 text-[15px] leading-6 text-muted-foreground">No activity yet</p>
                 ) : (
                     <ul
                         className="-mx-3 mt-3 max-h-[300px] overflow-y-auto [scrollbar-width:none]"
@@ -82,9 +80,9 @@ export function HowItWorks() {
     const { data } = useVault();
     const rate = data ? `${(data.currentRateBps / 100).toLocaleString()}%` : "a fixed rate";
     const steps = [
-        "You deposit BTC into the pool.",
-        `The pool borrows MUSD against it at Mezo’s ${rate} and parks it in MUSD savings.`,
-        "Savings above the loan cost are swapped back into BTC, so your BTC grows.",
+        "You deposit BTC.",
+        `The pool borrows MUSD against it at ${rate} and saves it.`,
+        "What the savings earn above the loan cost becomes more BTC.",
     ];
 
     return (
