@@ -13,6 +13,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { mezoTestnet } from "viem/chains";
 import { http, WagmiProvider } from "wagmi";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const config = getConfig({
     appName: "Feasy",
@@ -42,7 +43,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <WagmiProvider config={config}>
             <QueryClientProvider client={queryClient}>
                 <RainbowKitProvider theme={theme} initialChain={mezoTestnet} modalSize="compact">
-                    {children}
+                    <TooltipProvider delayDuration={120}>{children}</TooltipProvider>
                 </RainbowKitProvider>
             </QueryClientProvider>
         </WagmiProvider>

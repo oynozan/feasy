@@ -26,6 +26,25 @@ const BLOCK_SECONDS = 4.6;
 const LOG_RANGE = 10_000n;
 const BARS = 32;
 
+/* Session */
+
+// Whether wagmi has a connection stored to reconnect, read once per page load
+const resuming = (() => {
+    try {
+        return JSON.parse(localStorage.getItem("wagmi.store") ?? "{}").state?.connections?.value?.length > 0;
+    } catch {
+        return false;
+    }
+})();
+
+// Signed out once wagmi has had its chance to reconnect, so a returning wallet never flashes the pitch
+export function useSignedOut() {
+    const { status } = useAccount();
+    const [waiting, setWaiting] = useState(resuming);
+    if (waiting && status !== "disconnected") setWaiting(false);
+    return (status === "disconnected" || status === "connecting") && !waiting;
+}
+
 /* Live vault state */
 
 export function useVault() {

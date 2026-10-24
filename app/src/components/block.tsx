@@ -1,8 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { QuestionMarkCircleIcon } from "@heroicons/react/16/solid";
 import { AnimatePresence, motion } from "motion/react";
 import { Card } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { pop, rise, springy } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -24,8 +26,48 @@ export function BlockHeader({ children }: { children: ReactNode }) {
     );
 }
 
-export function BlockLabel({ children }: { children: ReactNode }) {
-    return <h2 className="text-[15px] leading-6 font-medium text-muted-foreground">{children}</h2>;
+export function BlockLabel({ children, tip }: { children: ReactNode; tip?: ReactNode }) {
+    return (
+        <div className="flex items-center gap-1.5">
+            <h2 className="text-[15px] leading-6 font-medium text-muted-foreground">{children}</h2>
+            {tip && <InfoTip>{tip}</InfoTip>}
+        </div>
+    );
+}
+
+// A question mark that explains its block in a plain sentence, opened by hover, focus or tap
+function InfoTip({ children }: { children: ReactNode }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <Tooltip open={open} onOpenChange={setOpen}>
+            <TooltipTrigger asChild>
+                <motion.button
+                    type="button"
+                    aria-label="What is this?"
+                    onClick={() => setOpen((was) => !was)}
+                    className="grid size-6 place-items-center rounded-full text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
+                    whileHover={{ scale: 1.15 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={springy}
+                >
+                    <QuestionMarkCircleIcon className="size-4" />
+                </motion.button>
+            </TooltipTrigger>
+            <TooltipContent
+                side="top"
+                sideOffset={6}
+                className="max-w-64 bg-primary px-3.5 py-2.5 text-[13px] leading-5 text-primary-foreground [&_svg]:bg-primary [&_svg]:fill-primary"
+            >
+                <motion.span
+                    initial={{ opacity: 0, scale: 0.9, y: 4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    transition={pop}
+                >
+                    {children}
+                </motion.span>
+            </TooltipContent>
+        </Tooltip>
+    );
 }
 
 export function Eyebrow({ children }: { children: ReactNode }) {
@@ -57,7 +99,7 @@ export function Chip({ children, tone = "flat" }: { children: ReactNode; tone?: 
         <motion.span
             className={cn(
                 "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[15px] font-medium whitespace-nowrap tabular-nums",
-                tone === "gain" ? "bg-second text-foreground" : "bg-secondary text-muted-foreground",
+                tone === "gain" ? "bg-highlight text-foreground" : "bg-secondary text-muted-foreground",
             )}
             initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}

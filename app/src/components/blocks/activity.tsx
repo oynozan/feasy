@@ -18,7 +18,9 @@ export function Activity() {
 
     return (
         <Block>
-            <PoolHeader label="Activity" />
+            <BlockHeader>
+                <BlockLabel>Activity</BlockLabel>
+            </BlockHeader>
             <Reveal ready={!!data} placeholder={<Skeleton className="mt-3 h-14 w-full rounded-tile" />}>
                 {data?.activity.length === 0 ? (
                     <p className="mt-3 text-[15px] leading-6 text-muted-foreground">
@@ -87,7 +89,9 @@ export function HowItWorks() {
 
     return (
         <Block>
-            <PoolHeader label="How it works" />
+            <BlockHeader>
+                <BlockLabel>How it works</BlockLabel>
+            </BlockHeader>
             <ol className="mt-3 flex flex-col gap-1">
                 {steps.map((step, i) => (
                     <li key={i} className="flex items-center gap-3 py-2.5">
@@ -97,21 +101,6 @@ export function HowItWorks() {
                 ))}
             </ol>
         </Block>
-    );
-}
-
-// The block title on the left, how much BTC the whole pool holds on the right
-function PoolHeader({ label }: { label: string }) {
-    const { data } = useVault();
-    return (
-        <BlockHeader>
-            <BlockLabel>{label}</BlockLabel>
-            {data && (
-                <span className="text-[15px] leading-6 text-muted-foreground tabular-nums">
-                    {formatBtc(data.totalAssets, 4)} BTC in the pool
-                </span>
-            )}
-        </BlockHeader>
     );
 }
 

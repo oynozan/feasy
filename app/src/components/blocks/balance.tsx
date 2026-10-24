@@ -7,10 +7,9 @@ import { ArrowDownRightIcon, ArrowUpRightIcon } from "@heroicons/react/16/solid"
 import { useBitcoinAccount } from "@mezo-org/orangekit";
 import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
-import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useHistory, useVault, type Bar } from "@/lib/hooks";
+import { useHistory, useSignedOut, useVault, type Bar } from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
 import { flow, grow, rise } from "@/lib/motion";
 import { Block, BlockHeader, Chip, ChipRow, Eyebrow, FigureRow, Press, Reveal } from "../block";
@@ -22,9 +21,7 @@ const BARS = 32;
 const when = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function Balance() {
-    const { status } = useAccount();
-    // A wallet that is still reconnecting reads as connected, so the signed-out pitch never flashes
-    const signedOut = status === "disconnected";
+    const signedOut = useSignedOut();
 
     return (
         <Block>

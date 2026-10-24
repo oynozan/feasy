@@ -26,9 +26,10 @@ function Shell() {
                         <div className={block} />
                     ) : (
                         <div className="flex h-full flex-col gap-3">
-                            <div className="grid gap-3 sm:grid-cols-2 lg:h-[212px]">
-                                <div className={`${block} min-h-[212px]`} />
-                                <div className={`${block} min-h-[212px]`} />
+                            <div className="grid shrink-0 gap-3 sm:grid-cols-2 lg:h-[284px] lg:grid-rows-2 [&>*]:min-h-[136px]">
+                                <div className={block} />
+                                <div className={`${block} sm:row-span-2`} />
+                                <div className={block} />
                             </div>
                             <div className={`${block} min-h-[240px] flex-1`} />
                         </div>

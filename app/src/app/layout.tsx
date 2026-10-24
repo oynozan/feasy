@@ -10,9 +10,15 @@ export const metadata: Metadata = {
     description: "Deposit BTC, get more BTC.",
 };
 
+// A wallet wagmi will reconnect keeps the white look, everyone else starts on the gold one
+const THEME = `try{var s=JSON.parse(localStorage.getItem("wagmi.store")||"{}");if(!(s.state&&s.state.connections&&s.state.connections.value&&s.state.connections.value.length))document.documentElement.dataset.theme="pool"}catch(e){document.documentElement.dataset.theme="pool"}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
     return (
-        <html lang="en" className={sans.variable}>
+        <html lang="en" className={sans.variable} suppressHydrationWarning>
+            <head>
+                <script dangerouslySetInnerHTML={{ __html: THEME }} />
+            </head>
             <body>
                 {children}
                 <ClientApp />
