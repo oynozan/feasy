@@ -7,7 +7,7 @@ export const YEAR = 365 * 24 * 60 * 60;
 const VIRTUAL_SHARES = 10n ** 6n;
 
 // Mezo liquidates a trove under 110%
-const LIQUIDATION_CR = 1.1;
+export const LIQUIDATION_CR = 1.1;
 
 export type Trove = { active: boolean; coll: bigint; debt: bigint };
 
@@ -21,9 +21,9 @@ export function ratioOf(trove: Trove, price: bigint) {
     return Number((trove.coll * price) / trove.debt) / 1e18;
 }
 
-// How far BTC can fall before the loan hits Mezo's liquidation ratio
-export function dropToLiquidation(ratio: number) {
-    return Math.max(0, 1 - LIQUIDATION_CR / ratio);
+// The BTC price at which a loan now at ratio would sit at target, debt and collateral held still
+export function priceAtRatio(price: number, ratio: number, target: number) {
+    return (price * target) / ratio;
 }
 
 // Yearly MUSD yield of sMUSD per MUSD, from its yield index at two blocks

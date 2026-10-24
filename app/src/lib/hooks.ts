@@ -61,6 +61,7 @@ export function useVault() {
             { ...vault, functionName: "trove" },
             { ...vault, functionName: "savingsValue" },
             { ...vault, functionName: "targetCR" },
+            { ...vault, functionName: "minCR" },
             { ...troveManager, functionName: "getTroveInterestRate", args: [vault.address] },
             { ...rateManager, functionName: "interestRate" },
             { ...vault, functionName: "balanceOf", args: [user] },
@@ -72,7 +73,8 @@ export function useVault() {
     });
 
     if (!data) return { isPending, data: undefined };
-    const [price, lastPrice, totalAssets, totalSupply, trove, savingsValue, targetCR, troveRate, rate, ...rest] = data;
+    const [price, lastPrice, totalAssets, totalSupply, trove, savingsValue, targetCR, minCR, troveRate, rate, ...rest] =
+        data;
     const [shares, maxWithdraw, maxRedeem, maxDeposit] = rest;
     const t = trove.result as Trove | undefined;
     const assets = totalAssets.result ?? 0n;
@@ -89,6 +91,7 @@ export function useVault() {
             trove: t ?? { active: false, coll: 0n, debt: 0n },
             savings: savingsValue.result ?? 0n,
             targetCR: targetCR.result ?? 25n * 10n ** 17n,
+            minCR: minCR.result ?? 2n * 10n ** 18n,
             troveRateBps: troveRate.result ?? 0,
             currentRateBps: rate.result ?? 0,
             shares: userShares,

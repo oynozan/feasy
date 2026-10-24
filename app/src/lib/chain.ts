@@ -18,6 +18,7 @@ export const vault = {
         "function trove() view returns ((bool active, uint256 coll, uint256 debt))",
         "function savingsValue() view returns (uint256)",
         "function lastPrice() view returns (uint256)",
+        "function minCR() view returns (uint256)",
         "function targetCR() view returns (uint256)",
         "function depositBTC(address receiver) payable returns (uint256)",
         "function withdraw(uint256 assets, address receiver, address owner) returns (uint256)",

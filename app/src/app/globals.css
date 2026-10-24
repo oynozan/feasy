@@ -26,6 +26,7 @@
     --color-danger: var(--danger);
     --color-highlight: var(--highlight);
     --color-track: var(--track);
+    --color-safe: var(--safe);
     --color-chart-1: var(--gold);
     --color-chart-2: var(--second);
     --font-sans: var(--font-google-sans), system-ui, sans-serif;
@@ -54,6 +55,7 @@
     --radius: 0.75rem;
     --highlight: var(--second);
     --track: color-mix(in oklab, var(--second) 45%, transparent);
+    --safe: var(--gold);
 
     transition:
         --background 0.6s ease,
@@ -61,19 +63,21 @@
         --secondary 0.6s ease,
         --muted-foreground 0.6s ease,
         --highlight 0.6s ease,
-        --track 0.6s ease;
+        --track 0.6s ease,
+        --safe 0.6s ease;
 
     color-scheme: light;
 }
 
 /* Before a wallet connects the page wears the gold, connecting fades it back to white */
 :root[data-theme="pool"] {
-    --background: var(--gold);
-    --card: var(--second);
-    --secondary: color-mix(in oklab, var(--second), var(--gold) 45%);
-    --muted-foreground: color-mix(in oklab, var(--black) 74%, var(--second));
-    --highlight: color-mix(in oklab, var(--white) 60%, var(--second));
-    --track: color-mix(in oklab, var(--gold) 60%, transparent);
+    --background: var(--second);
+    --card: var(--gold);
+    --secondary: color-mix(in oklab, var(--gold), var(--white) 32%);
+    --muted-foreground: color-mix(in oklab, var(--black) 76%, var(--gold));
+    --highlight: color-mix(in oklab, var(--white) 55%, var(--gold));
+    --track: color-mix(in oklab, var(--black) 14%, transparent);
+    --safe: var(--gray);
 }
 
 /* Registered so the theme switch can interpolate them */
@@ -101,6 +105,11 @@
     syntax: "<color>";
     inherits: true;
     initial-value: #ffdb79;
+}
+@property --safe {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: #f5b400;
 }
 @property --track {
     syntax: "<color>";

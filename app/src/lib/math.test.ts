@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
     btcParts,
-    dropToLiquidation,
+    LIQUIDATION_CR,
+    priceAtRatio,
     formatBtc,
     ratioOf,
     sampleBlocks,
@@ -25,7 +26,9 @@ test("loan ratio and liquidation headroom", () => {
     const trove = { active: true, coll: 87_300_000_000_000_000n, debt: 2_815_598_320_181_999_999_999n };
     const ratio = ratioOf(trove, 80_629_963_350_000_000_000_000n);
     assert.ok(ratio !== null && Math.abs(ratio - 2.5) < 0.001);
-    assert.ok(Math.abs(dropToLiquidation(2.5) - 0.56) < 1e-9);
+    // At 250% a 56% fall reaches liquidation and a 20% fall reaches the 200% repay line
+    assert.ok(Math.abs(priceAtRatio(100_000, 2.5, LIQUIDATION_CR) - 44_000) < 1e-6);
+    assert.ok(Math.abs(priceAtRatio(100_000, 2.5, 2) - 80_000) < 1e-6);
     assert.equal(ratioOf({ active: false, coll: 0n, debt: 0n }, WAD), null);
 });
 
