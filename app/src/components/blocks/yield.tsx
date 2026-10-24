@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import NumberFlow from "@number-flow/react";
-import { ArrowRightIcon } from "@heroicons/react/20/solid";
+import { ArrowRightIcon, BookOpenIcon } from "@heroicons/react/20/solid";
 import { motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVault, useYield } from "@/lib/hooks";
@@ -57,20 +58,57 @@ export function PoolSize() {
     );
 }
 
-// Half a tile tall and gold, the whole tile is the link to the pool view
+// Half a tile tall, the gold pool link and a square docs link that opens to its label
 export function PoolStats() {
+    const [docs, setDocs] = useState(false);
     return (
-        <motion.div className="shrink-0 lg:h-[68px]" whileHover="hover" whileTap={{ scale: 0.97 }} transition={springy}>
-            <Link
-                href="/pool"
-                className="flex h-full min-h-[68px] items-center justify-between rounded-block bg-gold px-6 text-base font-medium text-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--gold),var(--white)_16%)]"
+        <div className="flex shrink-0 gap-1.5 lg:h-[68px]">
+            <motion.div className="min-w-0 flex-1" whileHover="hover" whileTap={{ scale: 0.97 }} transition={springy}>
+                <Link
+                    href="/pool"
+                    className="flex h-full min-h-[68px] items-center justify-between gap-3 overflow-hidden rounded-block bg-gold px-6 text-base font-medium whitespace-nowrap text-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--gold),var(--white)_16%)]"
+                >
+                    {/* The docs label borrows this tile's width, so this one steps aside */}
+                    <motion.span
+                        className="overflow-hidden"
+                        initial={false}
+                        animate={{ opacity: docs ? 0 : 1, width: docs ? 0 : "auto" }}
+                        transition={springy}
+                    >
+                        Pool stats
+                    </motion.span>
+                    <motion.span className="shrink-0" variants={{ hover: { x: 5 } }} transition={springy}>
+                        <ArrowRightIcon className="size-5" />
+                    </motion.span>
+                </Link>
+            </motion.div>
+            <motion.div
+                className="shrink-0 overflow-hidden rounded-block bg-card"
+                initial={false}
+                animate={{ width: docs ? "auto" : 68 }}
+                whileTap={{ scale: 0.95 }}
+                transition={springy}
+                onHoverStart={() => setDocs(true)}
+                onHoverEnd={() => setDocs(false)}
             >
-                Pool stats
-                <motion.span variants={{ hover: { x: 5 } }} transition={springy}>
-                    <ArrowRightIcon className="size-5" />
-                </motion.span>
-            </Link>
-        </motion.div>
+                <Link
+                    href="/docs"
+                    aria-label="Documentation"
+                    onFocus={() => setDocs(true)}
+                    onBlur={() => setDocs(false)}
+                    className="flex h-full min-h-[68px] items-center gap-2 px-6 text-base font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
+                >
+                    <BookOpenIcon className="size-5 shrink-0" />
+                    <motion.span
+                        aria-hidden="true"
+                        animate={{ opacity: docs ? 1 : 0, x: docs ? 0 : -8 }}
+                        transition={springy}
+                    >
+                        Documentation
+                    </motion.span>
+                </Link>
+            </motion.div>
+        </div>
     );
 }
 

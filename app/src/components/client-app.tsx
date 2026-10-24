@@ -50,7 +50,10 @@ function Shell() {
                                 <div className={block} />
                                 <div className="flex flex-col gap-1.5 sm:row-span-2">
                                     <div className={`${block} flex-1`} />
-                                    <div className="min-h-[68px] shrink-0 rounded-block bg-gold lg:h-[68px]" />
+                                    <div className="flex min-h-[68px] shrink-0 gap-1.5 lg:h-[68px]">
+                                        <div className="flex-1 rounded-block bg-gold" />
+                                        <div className={`${block} w-[68px] shrink-0`} />
+                                    </div>
                                 </div>
                                 <div className={block} />
                             </div>
