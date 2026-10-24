@@ -213,14 +213,14 @@ export function useHistory() {
             );
 
             const activity: Activity[] = [];
-            const moves: { block: bigint; time: number; delta: bigint }[] = [];
+            const moves: { block: bigint; delta: bigint }[] = [];
             let deposited = 0n;
             for (const log of mine) {
                 const time = times.get(log.blockNumber)!;
                 if (log.eventName === "Transfer") {
                     const { from, to, value } = log.args;
-                    if (to.toLowerCase() === me) moves.push({ block: log.blockNumber, time, delta: value });
-                    if (from.toLowerCase() === me) moves.push({ block: log.blockNumber, time, delta: -value });
+                    if (to.toLowerCase() === me) moves.push({ block: log.blockNumber, delta: value });
+                    if (from.toLowerCase() === me) moves.push({ block: log.blockNumber, delta: -value });
                 } else {
                     const kind = log.eventName === "Deposit" ? "deposit" : "withdraw";
                     deposited += kind === "deposit" ? log.args.assets : -log.args.assets;
@@ -230,17 +230,18 @@ export function useHistory() {
             activity.reverse();
             if (moves.length === 0) return { activity, deposited, bars: [] as Bar[] };
 
-            const start = moves[0];
-            const blocks = sampleBlocks(start.block, latest.number, BARS);
-            const span = Number(latest.timestamp) - start.time;
-            const last = blocks[blocks.length - 1];
+            // At least a week back like the price chart, so a fresh deposit still draws a full row of bars
+            const weekBack = latest.number - BigInt(Math.round(WEEK / BLOCK_SECONDS));
+            const from = moves[0].block < weekBack ? moves[0].block : weekBack;
+            const blocks = sampleBlocks(from, latest.number, BARS);
+            const first = Number((await client!.getBlock({ blockNumber: from })).timestamp);
+            const span = Number(latest.timestamp) - first;
             const bars = await Promise.all(
                 blocks.map(async (block): Promise<Bar> => {
                     let shares = 0n;
                     for (const move of moves) if (move.block <= block) shares += move.delta;
-                    // ponytail: bar times are spread linearly between the first move and now, blocks run near constant
-                    const offset = last === start.block ? 1 : Number(block - start.block) / Number(last - start.block);
-                    const time = start.time + span * offset;
+                    // ponytail: bar times are spread linearly from the first bar to now, blocks run near constant
+                    const time = first + (span * Number(block - from)) / Number(latest.number - from);
                     const [wallet, pool] = await Promise.all([
                         client!.getBalance({ address: address!, blockNumber: block }),
                         shares === 0n
