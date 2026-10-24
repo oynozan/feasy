@@ -22,9 +22,19 @@ const when = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric"
 
 export function Balance() {
     const signedOut = useSignedOut();
+    const [hovered, setHovered] = useState(false);
+    const [focused, setFocused] = useState(false);
 
     return (
-        <Block data-balance="">
+        <Block
+            data-balance=""
+            onPointerEnter={() => setHovered(true)}
+            onPointerLeave={() => setHovered(false)}
+            onFocus={(event) => setFocused(event.target.matches(":focus-visible"))}
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+            }}
+        >
             <BlockHeader>
                 <Wordmark />
                 {!signedOut && <WalletPill />}
@@ -38,7 +48,7 @@ export function Balance() {
                     exit={{ opacity: 0, y: -8, transition: { duration: 0.12 } }}
                     transition={rise}
                 >
-                    {signedOut ? <SignedOut /> : <SignedIn />}
+                    {signedOut ? <SignedOut /> : <SignedIn open={hovered || focused} />}
                 </motion.div>
             </AnimatePresence>
         </Block>
@@ -61,7 +71,7 @@ function SignedOut() {
     );
 }
 
-function SignedIn() {
+function SignedIn({ open }: { open: boolean }) {
     const { data } = useVault();
     const wallet = useWalletBtc();
     const history = useHistory().data;
@@ -101,13 +111,27 @@ function SignedIn() {
                     <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n)} />
                 </Reveal>
             </FigureRow>
-            <dl
-                data-row="chip"
-                className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 text-[15px] leading-6 text-muted-foreground"
-            >
-                <Part label="Wallet" wei={inWallet} />
-                <Part label="Pool" wei={pool} />
-            </dl>
+            {/* The split under the total opens while the block is hovered or focused */}
+            <AnimatePresence initial={false}>
+                {open && (
+                    <motion.div
+                        key="parts"
+                        className="overflow-hidden"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={rise}
+                    >
+                        <dl
+                            data-row="chip"
+                            className="mt-3 grid grid-cols-[auto_1fr] items-baseline gap-x-3 text-[15px] leading-7 text-muted-foreground"
+                        >
+                            <Part label="Wallet" wei={inWallet} />
+                            <Part label="Pool" wei={pool} />
+                        </dl>
+                    </motion.div>
+                )}
+            </AnimatePresence>
             <Bars bars={history?.bars} pointed={pointed} onPoint={setPointed} />
             <div className="mt-6 grid grid-cols-2 gap-2">
                 <Press>
@@ -130,7 +154,7 @@ function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
     return (
         <>
             <dt>{label}</dt>
-            <dd className="tabular-nums">
+            <dd className="text-[22px] font-medium tracking-[-0.01em] tabular-nums">
                 {wei === undefined ? (
                     "–"
                 ) : (
@@ -140,6 +164,7 @@ function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
                         format={{ minimumFractionDigits: 8, maximumFractionDigits: 8 }}
                     />
                 )}
+                <span className="ml-1.5 text-[15px] font-normal tracking-normal">BTC</span>
             </dd>
         </>
     );
