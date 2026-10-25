@@ -186,6 +186,12 @@ export function Withdraw() {
                         confirm: "Can’t be cancelled, request exit?",
                         limit: data.position,
                         run: requestExit,
+                        // The last step names what this amount will do before anything is signed
+                        onQueueable: (queueable) => {
+                            if (tx.state.status === "idle") {
+                                setKind(queueable ? "request" : "withdraw");
+                            }
+                        },
                     }
                 }
                 tx={tx.state}
@@ -271,7 +277,15 @@ type AmountFormProps = {
     blocked: string | undefined;
     connect: Connect;
     // Above max, up to limit, the form offers this instead and asks a second press before it runs
-    overflow?: { label: string; confirm: string; limit: bigint; run: (amount: bigint) => Promise<boolean> } | false;
+    overflow?:
+        | {
+              label: string;
+              confirm: string;
+              limit: bigint;
+              run: (amount: bigint) => Promise<boolean>;
+              onQueueable?: (queueable: boolean) => void;
+          }
+        | false;
     initial?: string;
     tx: TxState;
     onEdit: () => void;
@@ -309,6 +323,8 @@ function AmountForm({
     const [confirming, setConfirming] = useState(false);
     const queueable = !!overflow && tooMuch && !!amount && amount <= overflow.limit;
     const canQueue = !connect && !working && !blocked && queueable;
+    const onQueueable = overflow ? overflow.onQueueable : undefined;
+    useEffect(() => onQueueable?.(queueable), [queueable, onQueueable]);
 
     const label = connect
         ? connect.label
