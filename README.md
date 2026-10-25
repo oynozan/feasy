@@ -2,6 +2,8 @@
 
 Deposit BTC, get more BTC. The vault borrows MUSD against the pooled BTC at Mezo's fixed rate, parks it in the MUSD Savings Vault (sMUSD), and swaps the savings income above the loan cost back into BTC. Your exposure stays plain BTC: the borrowed dollars sit in dollar savings, so there is no leverage on BTC.
 
+Documentation: [docs.feasy.org](https://docs.feasy.org).
+
 Built for the Mezo buildathon, Track 1 (DeFi). It runs on Mezo testnet. The live vault is v7 (Wave 2), which adds a veBTC sleeve that earns the sMUSD gauge's fees.
 
 ## How it works
@@ -89,7 +91,7 @@ v6 ran five more phases on the same private copy (vault `0xf3C2…6D30`). All 55
 
 ## Try it
 
-The web app runs from one command with Docker, on http://localhost:3000. Set `MEZO_NETWORK=mainnet` for a mainnet build and `PORT` to change the port.
+The web app and the docs run from one command with Docker: the app on http://localhost:5667 and the docs on http://localhost:5668. Set `MEZO_NETWORK=mainnet` for a mainnet build, and `APP_PORT` or `DOCS_PORT` to change a port.
 
 ```bash
 docker compose up -d --build
