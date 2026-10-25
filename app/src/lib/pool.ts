@@ -156,6 +156,9 @@ export function usePoolHistory() {
                 holders.set(to.toLowerCase(), (holders.get(to.toLowerCase()) ?? 0n) + value);
             }
             holders.delete(zeroAddress);
+            // v6 escrows queued shares at its queue, which holds them for others rather than depositing
+            const queue = await client!.readContract({ ...vault, functionName: "queue" }).catch(() => undefined);
+            if (queue) holders.delete(queue.toLowerCase());
             const depositors = [...holders.values()].filter((shares) => shares > 0n).length;
 
             // Before the first deposit the pool holds nothing, a zero there would flatten the chart

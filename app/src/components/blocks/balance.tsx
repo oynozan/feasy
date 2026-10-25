@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import NumberFlow from "@number-flow/react";
 import { ArrowDownRightIcon, ArrowsRightLeftIcon, ArrowUpRightIcon, PlusIcon } from "@heroicons/react/16/solid";
@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useAccount, useConnect, useConnections, useConnectors, useSwitchAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isBitcoinWallet, useHistory, useHoldings, useSignedOut, type Bar } from "@/lib/hooks";
+import { isBitcoinWallet, useHistory, useHoldings, useQueue, useSignedOut, useVaultTx, type Bar } from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
 import { flow, grow, pop, rise, springy } from "@/lib/motion";
 import { Block, BlockHeader, Chip, Eyebrow, FigureRow, Press, Reveal } from "../block";
@@ -74,6 +74,8 @@ function SignedOut() {
 
 function SignedIn({ open }: { open: boolean }) {
     const holdings = useHoldings();
+    const queue = useQueue();
+    const queued = queue ? queue.waiting + queue.claimable : 0n;
     const history = useHistory().data;
     const [pointed, setPointed] = useState<number | null>(null);
     const bar = pointed !== null ? history?.bars[pointed] : undefined;
@@ -108,7 +110,7 @@ function SignedIn({ open }: { open: boolean }) {
             </Eyebrow>
             <FigureRow>
                 <Reveal ready={ready} placeholder={<Skeleton className="h-10 w-60" />}>
-                    <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n)} />
+                    <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n) + (bar ? 0n : queued)} />
                 </Reveal>
             </FigureRow>
             {/* The split under the total opens while the block is hovered or focused */}
@@ -128,6 +130,13 @@ function SignedIn({ open }: { open: boolean }) {
                         >
                             <Part label="Wallet" wei={inWallet} />
                             <Part label="Pool" wei={pool} />
+                            {queue && !bar && queued > 0n && (
+                                <Part
+                                    label="Exit queue"
+                                    wei={queued}
+                                    action={queue.ready.length > 0 && <Claim queue={queue.address} ids={queue.ready} />}
+                                />
+                            )}
                         </dl>
                     </motion.div>
                 )}
@@ -150,7 +159,7 @@ function SignedIn({ open }: { open: boolean }) {
 }
 
 // One side of the total, quieter and smaller than it
-function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
+function Part({ label, wei, action }: { label: string; wei: bigint | undefined; action?: ReactNode }) {
     return (
         <>
             <dt>{label}</dt>
@@ -165,8 +174,27 @@ function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
                     />
                 )}
                 <span className="ml-1.5 text-[15px] font-normal tracking-normal">BTC</span>
+                {action}
             </dd>
         </>
+    );
+}
+
+// Pays out filled exit requests, the keeper does it within a pass too, sixteen ids per call at most
+function Claim({ queue, ids }: { queue: `0x${string}`; ids: bigint[] }) {
+    const tx = useVaultTx();
+    const busy = tx.state.status === "wallet" || tx.state.status === "pending";
+    return (
+        <Press className="ml-2 inline-flex align-middle">
+            <button
+                type="button"
+                disabled={busy}
+                onClick={() => void tx.send({ functionName: "claim", args: [ids.slice(0, 16)], queue })}
+                className="h-6 rounded-full bg-gold px-2.5 text-[13px] font-medium tracking-normal text-foreground disabled:opacity-60"
+            >
+                Claim
+            </button>
+        </Press>
     );
 }
 

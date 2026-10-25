@@ -35,6 +35,7 @@ import {
     multicall,
     priceFeed,
     rateManager,
+    redeemQueue,
     troveManager,
     vault,
     VAULT_FROM_BLOCK,
@@ -90,6 +91,9 @@ export function useVault() {
             { ...vault, functionName: "maxRedeem", args: [user] },
             { ...vault, functionName: "maxDeposit", args: [user] },
             { ...vault, functionName: "borrowingEnabled" },
+            { ...vault, functionName: "lockedProfit" },
+            { ...vault, functionName: "profit" },
+            { ...vault, functionName: "queue" },
         ],
         query: { refetchInterval: 12_000 },
     });
@@ -97,7 +101,7 @@ export function useVault() {
     if (!data) return { isPending, data: undefined };
     const [price, lastPrice, totalAssets, totalSupply, trove, savingsValue, targetCR, minCR, troveRate, rate, ...rest] =
         data;
-    const [shares, maxWithdraw, maxRedeem, maxDeposit, borrowing] = rest;
+    const [shares, maxWithdraw, maxRedeem, maxDeposit, borrowing, lockedProfit, profit, queue] = rest;
     const t = trove.result as Trove | undefined;
     const assets = totalAssets.result ?? 0n;
     const supply = totalSupply.result ?? 0n;
@@ -123,6 +127,10 @@ export function useVault() {
             maxRedeem: maxRedeem.result ?? 0n,
             maxDeposit: maxDeposit.result ?? 0n,
             borrowing: (borrowing.result as boolean | undefined) ?? true,
+            // v6 only, undefined on v5
+            unlocking: lockedProfit.result as bigint | undefined,
+            unlockAt: (profit.result as readonly [bigint, bigint, bigint] | undefined)?.[2],
+            queue: queue.result as Address | undefined,
         },
     };
 }
@@ -155,6 +163,61 @@ export function useHoldings() {
         shares += reads[i + 1];
     }
     return { wallet, pool: sharesToAssets(shares, data.totalAssets, data.supply) };
+}
+
+// The connected wallets' exit requests in v6's queue, what still waits and what can be claimed
+export function useQueue() {
+    const addresses = useAddresses();
+    const { data } = useVault();
+    const queue = data?.queue;
+    const lists = useReadContracts({
+        allowFailure: false,
+        contracts: addresses.map((owner) => ({
+            address: queue!,
+            abi: redeemQueue,
+            functionName: "requestsOf",
+            args: [owner],
+        })) as never,
+        query: { enabled: !!queue && addresses.length > 0, refetchInterval: 12_000 },
+    }).data as (readonly bigint[])[] | undefined;
+    const ids = lists?.flat() ?? [];
+    // Every read here is storage only, so any number of requests stays clear of the precompile cap
+    const reads = useReadContracts({
+        allowFailure: false,
+        contracts: [
+            { address: queue!, abi: redeemQueue, functionName: "queueState" },
+            ...ids.flatMap((id) =>
+                (["pendingRedeem", "claimableRedeem", "sharesAhead"] as const).map((functionName) => ({
+                    address: queue!,
+                    abi: redeemQueue,
+                    functionName,
+                    args: [id],
+                })),
+            ),
+        ] as never,
+        query: { enabled: !!queue && !!lists, refetchInterval: 12_000 },
+    }).data as unknown[] | undefined;
+    if (!queue || !data || !reads) return undefined;
+    const [state, ...each] = reads as [readonly bigint[], ...bigint[]];
+    let waitingShares = 0n;
+    let claimable = 0n;
+    let ahead: bigint | undefined;
+    const ready: bigint[] = [];
+    ids.forEach((id, i) => {
+        const [pending, claim, before] = each.slice(i * 3, i * 3 + 3);
+        waitingShares += pending;
+        claimable += claim;
+        if (claim > 0n) ready.push(id);
+        if (pending > 0n && (ahead === undefined || before < ahead)) ahead = before;
+    });
+    return {
+        address: queue,
+        waiting: sharesToAssets(waitingShares, data.totalAssets, data.supply),
+        claimable,
+        ready,
+        ahead,
+        backlog: state[0] - state[1],
+    };
 }
 
 export function useWalletBtc() {
@@ -348,7 +411,10 @@ export type TxState =
 
 type VaultCall =
     | { functionName: "depositBTC"; args: readonly [Address]; value: bigint }
-    | { functionName: "withdraw" | "redeem"; args: readonly [bigint, Address, Address] };
+    | { functionName: "withdraw" | "redeem"; args: readonly [bigint, Address, Address] }
+    // v6 sends exit requests and claims to its queue contract instead
+    | { functionName: "requestRedeem"; args: readonly [bigint, Address, Address]; queue: Address }
+    | { functionName: "claim"; args: readonly [readonly bigint[]]; queue: Address };
 
 class Failed extends Error {}
 
@@ -382,14 +448,16 @@ function useTxState() {
         setState({ status: "wallet" });
         let hash: Hash | undefined;
         try {
+            const { queue, ...rest } = { queue: undefined, ...call } as VaultCall & { queue?: Address };
+            const target = queue ? { address: queue, abi: redeemQueue } : vault;
             // VaultCall already pins each call's shape, viem just cannot narrow the union
-            const request = { ...vault, ...call, account: address } as Parameters<typeof client.simulateContract>[0];
+            const request = { ...target, ...rest, account: address } as Parameters<typeof client.simulateContract>[0];
             // Mezo's gas estimate drops revert data while eth_call keeps it, so a doomed call fails here with its reason
             await client.simulateContract(request);
             if (isBitcoinWallet(connector)) {
                 // OrangeKit signs with the Bitcoin wallet and relays through its smart account, writeContract skips that
                 const data = encodeFunctionData(request as Parameters<typeof encodeFunctionData>[0]);
-                const sent = await sendFromBitcoin(vault.address, "value" in call ? call.value : 0n, data);
+                const sent = await sendFromBitcoin(target.address, "value" in call ? call.value : 0n, data);
                 if (!sent) throw new Failed("Reconnect your Bitcoin wallet and try again.");
                 hash = sent.hash;
             } else {
@@ -401,8 +469,10 @@ function useTxState() {
             }
             setState({ status: "pending", hash });
             const receipt = await client.waitForTransactionReceipt({ hash });
-            // A smart account can land while the vault call inside it reverts, so only a vault event counts
-            const ran = receipt.logs.some((log) => log.address.toLowerCase() === vault.address.toLowerCase());
+            // A smart account can land while the call inside it reverts, so only a vault or queue event counts
+            const ran = receipt.logs.some((log) =>
+                [vault.address, queue].some((at) => at && log.address.toLowerCase() === at.toLowerCase()),
+            );
             if (receipt.status !== "success" || !ran) throw new Failed("The vault call didn't go through.");
             setState({ status: "done", hash });
             return true;
@@ -429,6 +499,8 @@ const REVERTS: Record<string, string> = {
     ERC4626ExceededMaxRedeem: "That's more than you can withdraw right now.",
     Illiquid: "The pool can't free that much BTC right now.",
     ZeroShares: "That amount is too small.",
+    BadReceiver: "That address can't receive BTC from the pool.",
+    BadParams: "That request can't be claimed.",
 };
 
 function errorState(error: unknown): TxState {

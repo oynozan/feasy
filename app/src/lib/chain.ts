@@ -22,6 +22,9 @@ export const vault = {
         "function minCR() view returns (uint256)",
         "function targetCR() view returns (uint256)",
         "function borrowingEnabled() view returns (bool)",
+        "function lockedProfit() view returns (uint256)",
+        "function profit() view returns (uint128 locked, uint64 lockedAt, uint64 unlockAt)",
+        "function queue() view returns (address)",
         "function depositBTC(address receiver) payable returns (uint256)",
         "function withdraw(uint256 assets, address receiver, address owner) returns (uint256)",
         "function redeem(uint256 shares, address receiver, address owner) returns (uint256)",
@@ -33,6 +36,8 @@ export const vault = {
         "error ERC4626ExceededMaxRedeem(address owner, uint256 shares, uint256 max)",
         "error Illiquid()",
         "error ZeroShares()",
+        "error NotQueue()",
+        "error NotGuardian()",
     ]),
 } as const;
 
@@ -71,3 +76,17 @@ export const multicall = {
     address: mezoTestnet.contracts.multicall3.address,
     abi: parseAbi(["function getEthBalance(address addr) view returns (uint256 balance)"]),
 } as const;
+
+// v6 takes exits larger than the pool can pay at once into this queue, its address comes from vault.queue()
+export const redeemQueue = parseAbi([
+    "function requestRedeem(uint256 shares, address receiver, address owner) returns (uint256 id)",
+    "function claim(uint256[] ids) returns (uint256 assets)",
+    "function pendingRedeem(uint256 id) view returns (uint256)",
+    "function claimableRedeem(uint256 id) view returns (uint256)",
+    "function sharesAhead(uint256 id) view returns (uint256)",
+    "function requestsOf(address owner) view returns (uint256[])",
+    "function queueState() view returns (uint256 queued, uint256 filled, uint256 reservedBtc, uint256 requests)",
+    "error NotVault()",
+    "error BadReceiver()",
+    "error BadParams()",
+]);

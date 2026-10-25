@@ -372,13 +372,18 @@ function Tile({
 // One share's BTC value against the exact 1 BTC it was worth before anyone deposited
 function SinceLaunch({ launch, sample }: { launch: number | undefined; sample: PoolSample | undefined }) {
     const { perShare } = usePoolState();
+    const { data } = useVault();
     const shown = sample?.perShare ?? perShare;
     const change = Number(shown ?? WAD) / 1e18 - 1;
     // Under half a hundredth of a percent rounds to 0.00%, which takes no sign
     const sign = Math.abs(change) < 0.00005 ? "" : change > 0 ? "+" : "−";
     const tip =
         launch !== undefined && perShare !== undefined
-            ? `One BTC put in when the pool opened on ${day.format(launch * 1000)} is worth ${formatBtc(perShare)} BTC today.`
+            ? `One BTC put in when the pool opened on ${day.format(launch * 1000)} is worth ${formatBtc(perShare)} BTC today.${
+                  data?.unlocking && data.unlockAt
+                      ? ` Another ${formatBtc(data.unlocking)} BTC of earnings is still unlocking into it, fully in by ${day.format(Number(data.unlockAt) * 1000)}.`
+                      : ""
+              }`
             : "How much one BTC put in when the pool opened is worth today.";
 
     return (

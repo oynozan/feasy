@@ -24,7 +24,7 @@ import {
     type BridgeState,
 } from "@/lib/bridge";
 import { EXPLORER } from "@/lib/chain";
-import { useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
+import { useQueue, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
 import { pop, rise, springy } from "@/lib/motion";
 import type { Source as Token } from "@/lib/swap";
@@ -72,7 +72,8 @@ export function Deposit() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status]);
 
-    const title = <SourceToggle value={source} onChange={setSource} bridging={bridging} />;
+    const backlog = !!useQueue()?.backlog;
+    const title = <SourceToggle value={source} onChange={setSource} bridging={bridging} backlog={backlog} />;
 
     if (source === "tbtc") {
         return (
@@ -133,6 +134,33 @@ export function Withdraw() {
     const { openConnectModal } = useConnectModal();
     const { data } = useVault();
     const tx = useVaultTx();
+    const queue = useQueue();
+    const [kind, setKind] = useState<"withdraw" | "request">("withdraw");
+
+    // Only v6 unlocks earnings over a week and queues large exits, v5 gets no question mark here
+    const tip =
+        [
+            data?.unlocking !== undefined &&
+                "New earnings unlock into the share price over 7 days, so leaving early hands your still unlocking part to the people who stay.",
+            queue &&
+                "More than you can take out right now goes into a line that pays in order. A request in line can’t be cancelled.",
+            queue &&
+                queue.backlog > 0n &&
+                "Requests already in line get paid first, so less can be taken out right away.",
+        ]
+            .filter(Boolean)
+            .join(" ") || undefined;
+
+    // A full exit queues every share, otherwise the shares worth the amount now, rounded up
+    const requestExit = (amount: bigint) => {
+        if (!data?.queue || !address) return Promise.resolve(false);
+        const shares =
+            amount * 100_000n >= data.position * 99_999n
+                ? data.shares
+                : min(data.shares, ceilDiv(amount * (data.supply + 10n ** 6n), data.totalAssets + 1n));
+        setKind("request");
+        return tx.send({ functionName: "requestRedeem", args: [shares, address, address], queue: data.queue });
+    };
 
     const blocked = !data
         ? undefined
@@ -144,9 +172,9 @@ export function Withdraw() {
 
     return (
         <>
-            <TxSteps tx={tx.state} done="Withdrawn" />
+            <TxSteps tx={tx.state} done={kind === "request" ? "Queued" : "Withdrawn"} />
             <AmountForm
-                title={<BlockLabel>Withdraw BTC</BlockLabel>}
+                title={<BlockLabel tip={tip}>Withdraw BTC</BlockLabel>}
                 source="Available"
                 unit="BTC"
                 verb="Withdraw"
@@ -155,9 +183,18 @@ export function Withdraw() {
                 max={data?.maxWithdraw}
                 blocked={blocked}
                 connect={isConnected ? undefined : { label: "Connect wallet", run: () => openConnectModal?.() }}
+                overflow={
+                    data?.queue && {
+                        label: "Request exit",
+                        confirm: "Can’t be cancelled, request exit?",
+                        limit: data.position,
+                        run: requestExit,
+                    }
+                }
                 tx={tx.state}
                 onEdit={tx.reset}
                 onSubmit={(amount) => {
+                    setKind("withdraw");
                     // The oracle moves between reading the max and sending, so a full exit asks a hair under it
                     if (data && amount * 100_000n >= data.maxWithdraw * 99_999n) {
                         const shares = data.maxRedeem - data.maxRedeem / 100_000n;
@@ -175,10 +212,12 @@ function SourceToggle({
     value,
     onChange,
     bridging,
+    backlog,
 }: {
     value: Source;
     onChange: (next: Source) => void;
     bridging: boolean;
+    backlog: boolean;
 }) {
     return (
         <div className="flex items-center gap-2">
@@ -214,6 +253,8 @@ function SourceToggle({
                 {SWAPS
                     ? `Send tBTC, WBTC or cbBTC from any Ethereum wallet. WBTC and cbBTC swap into tBTC first, then it lands here as BTC in about ${BRIDGE_MINUTES} minutes, with no bridge fee. Wrapped BTC already on Mezo can’t be deposited.`
                     : `tBTC is Bitcoin on Ethereum. Send it from any Ethereum wallet and it lands here as BTC in about ${BRIDGE_MINUTES} minutes, with no bridge fee. Holding WBTC or cbBTC? Swap it to tBTC on Ethereum first. Wrapped BTC already on Mezo can’t be deposited.`}
+                {backlog &&
+                    " Withdrawals are waiting in line and new deposits pay them first, so you may not be able to take this out right away."}
             </InfoTip>
         </div>
     );
@@ -232,6 +273,8 @@ type AmountFormProps = {
     least?: bigint;
     blocked: string | undefined;
     connect: Connect;
+    // Above max, up to limit, the form offers this instead and asks a second press before it runs
+    overflow?: { label: string; confirm: string; limit: bigint; run: (amount: bigint) => Promise<boolean> } | false;
     initial?: string;
     tx: TxState;
     onEdit: () => void;
@@ -251,6 +294,7 @@ function AmountForm({
     least,
     blocked,
     connect,
+    overflow,
     initial,
     tx,
     onEdit,
@@ -265,6 +309,9 @@ function AmountForm({
     const tooMuch = !!amount && max !== undefined && amount > max;
     const tooLittle = !!amount && least !== undefined && amount < least;
     const ready = !connect && !working && !blocked && !!amount && max !== undefined && !tooMuch && !tooLittle;
+    const [confirming, setConfirming] = useState(false);
+    const queueable = !!overflow && tooMuch && !!amount && amount <= overflow.limit;
+    const canQueue = !connect && !working && !blocked && queueable;
 
     const label = connect
         ? connect.label
@@ -275,12 +322,17 @@ function AmountForm({
             : (blocked ??
               (tooLittle && least !== undefined
                   ? `At least ${formatUnits(least, 18)} ${unit}`
-                  : tooMuch
-                    ? over
-                    : verb));
+                  : queueable && overflow
+                    ? confirming
+                        ? overflow.confirm
+                        : overflow.label
+                    : tooMuch
+                      ? over
+                      : verb));
 
     const edit = (next: string) => {
         setText(next);
+        setConfirming(false);
         if (tx.status !== "wallet" && tx.status !== "pending") onEdit();
     };
 
@@ -291,6 +343,12 @@ function AmountForm({
                 onSubmit={async (event) => {
                     event.preventDefault();
                     if (connect) return connect.run();
+                    if (canQueue && overflow && amount) {
+                        if (!confirming) return setConfirming(true);
+                        setConfirming(false);
+                        if (await overflow.run(amount)) setText("");
+                        return;
+                    }
                     if (ready && amount && (await onSubmit(amount))) setText("");
                 }}
             >
@@ -360,12 +418,12 @@ function AmountForm({
                     </AnimatePresence>
                 </div>
                 {extra?.(amount)}
-                <Press className="mt-auto" disabled={!connect && !ready}>
+                <Press className="mt-auto" disabled={!connect && !ready && !canQueue}>
                     <Button
                         type="submit"
                         size="lg"
                         className="h-12 overflow-hidden text-base"
-                        disabled={!connect && !ready}
+                        disabled={!connect && !ready && !canQueue}
                     >
                         <AnimatePresence mode="popLayout" initial={false}>
                             <motion.span
@@ -707,6 +765,10 @@ function parseAmount(text: string) {
     if (!text || text === ".") return undefined;
     const amount = parseUnits(text.startsWith(".") ? `0${text}` : text, 18);
     return amount > 0n ? amount : undefined;
+}
+
+function ceilDiv(a: bigint, b: bigint) {
+    return (a + b - 1n) / b;
 }
 
 function min(a: bigint, b: bigint) {
