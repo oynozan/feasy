@@ -156,7 +156,7 @@ function BtcFigure({ wei }: { wei: bigint }) {
     );
 }
 
-// Up to a quarter of the pool votes in veBTC for the savings vault, each lock ending on a Thursday
+// Up to sleeveBps of the pool votes in veBTC for the savings vault, each lock ending on a Thursday
 function LockedLabel() {
     const sleeve = useSleeve();
     const ends = sleeve?.rungs.map(
@@ -166,7 +166,7 @@ function LockedLabel() {
         <span className="inline-flex items-center gap-1">
             Locked in veBTC
             <InfoTip>
-                {`Up to a quarter of the pool is locked in veBTC, where it votes for Mezo’s savings vault and earns its fees.${
+                {`Up to ${sleeve?.share ?? "part"} of the pool is locked in veBTC, where it votes for Mezo’s savings vault and earns its fees.${
                     ends?.length ? ` ${ends.join(", ")}.` : ""
                 }${sleeve && !sleeve.open ? " Locks are paused, so new BTC stays liquid, and the running ones still end on schedule." : ""}`}
             </InfoTip>

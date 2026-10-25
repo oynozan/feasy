@@ -153,7 +153,7 @@ export function Withdraw() {
                 "New earnings unlock into the share price over 7 days, so leaving early hands your still unlocking part to the people who stay.",
             data?.queue &&
                 (sleeve
-                    ? `Up to a quarter of the pool sits in veBTC locks that end on Thursdays, so more than you can take out right now waits in a line paid as locks end, ${latest ? `by ${thursday.format(latest * 1000)} at the latest` : `within ${weeks}`}. A request in line can’t be cancelled.`
+                    ? `Up to ${sleeve.share} of the pool sits in veBTC locks that end on Thursdays, so more than you can take out right now waits in a line paid as locks end, ${latest ? `by ${thursday.format(latest * 1000)} at the latest` : `within ${weeks}`}. A request in line can’t be cancelled.`
                     : "More than you can take out right now goes into a line that pays in order. A request in line can’t be cancelled."),
             !!queue?.backlog && "Requests already in line get paid first, so less can be taken out right away.",
         ]

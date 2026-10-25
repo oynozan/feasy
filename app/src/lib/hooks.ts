@@ -285,7 +285,7 @@ export function useLegacy() {
     })).filter((v): v is typeof v & { shares: bigint; assets: bigint } => !!v.shares && !!v.assets);
 }
 
-// v7's veBTC locks, up to a quarter of the pool, each ending on a Thursday at 00:00 UTC
+// v7's veBTC locks, up to sleeveBps of the pool, each ending on a Thursday at 00:00 UTC
 export function useSleeve() {
     const { data } = useVault();
     const sleeve = data?.sleeve;
@@ -296,15 +296,17 @@ export function useSleeve() {
             { address: sleeve!, abi: veSleeve, functionName: "paused" },
             { address: sleeve!, abi: veSleeve, functionName: "live" },
             { address: sleeve!, abi: veSleeve, functionName: "lockWeeks" },
+            { address: sleeve!, abi: veSleeve, functionName: "sleeveBps" },
             ...[0n, 1n, 2n, 3n].map((i) => ({ address: sleeve!, abi: veSleeve, functionName: "rungs", args: [i] })),
         ] as never,
         query: { enabled: !!sleeve, refetchInterval: 60_000 },
     }).data as unknown[] | undefined;
     if (!sleeve || !reads) return undefined;
-    const [principal, paused, live, lockWeeks, ...rungs] = reads as [
+    const [principal, paused, live, lockWeeks, bps, ...rungs] = reads as [
         bigint,
         boolean,
         boolean,
+        number,
         number,
         ...(readonly [bigint, bigint, bigint])[],
     ];
@@ -313,6 +315,7 @@ export function useSleeve() {
         // Paused or Mezo Earn down means no new locks, the running ones still end on schedule
         open: !paused && live,
         lockWeeks,
+        share: `${bps / 100}%`,
         rungs: rungs
             .filter(([id]) => id !== 0n)
             .map(([, amount, end]) => ({ amount, end: Number(end) }))
