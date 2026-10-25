@@ -7,6 +7,7 @@ import { ArrowDownRightIcon, ArrowsRightLeftIcon, ArrowUpRightIcon, PlusIcon } f
 import { useBitcoinAccount } from "@mezo-org/orangekit";
 import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
+import { mezoTestnet } from "viem/chains";
 import { useAccount, useConnect, useConnections, useConnectors, usePublicClient, useSwitchAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -400,7 +401,8 @@ function WalletSwitch() {
                                         type="button"
                                         onClick={() => {
                                             setOpen(false);
-                                            connect({ connector: option });
+                                            // OrangeKit refuses a connect without the chain it runs on, RainbowKit always passes it
+                                            connect({ connector: option, chainId: mezoTestnet.id });
                                         }}
                                         className="flex h-10 w-full items-center rounded-[14px] px-3 text-left text-[15px] font-medium transition-colors hover:bg-secondary"
                                     >

@@ -65,10 +65,11 @@ const resuming = (() => {
 
 // Signed out once wagmi has had its chance to reconnect, so a returning wallet never flashes the pitch
 export function useSignedOut() {
-    const { status } = useAccount();
+    const { status, address } = useAccount();
     const [waiting, setWaiting] = useState(resuming);
     if (waiting && status !== "disconnected") setWaiting(false);
-    return (status === "disconnected" || status === "connecting") && !waiting;
+    // Adding a second wallet reads as connecting too, while the first one stays signed in
+    return (status === "disconnected" || (status === "connecting" && !address)) && !waiting;
 }
 
 /* Live vault state */
