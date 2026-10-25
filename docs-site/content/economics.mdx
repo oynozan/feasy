@@ -1,0 +1,252 @@
+import { Callout } from "nextra/components";
+
+# Economics
+
+This page is the math behind the vault. Every formula comes from the contracts. Every number is either a contract setting or Mezo's public data.
+
+<Callout type="warning">
+These are formulas, not forecasts. Rates move every week. Plug in today's rates to see where the vault stands. Nothing here promises a yield.
+</Callout>
+
+## Notation
+
+| Symbol | Meaning | Design value | Testnet |
+| --- | --- | --- | --- |
+| $P$ | BTC price in MUSD, from Mezo's PriceFeed | | |
+| $C$ | BTC collateral in the trove | | |
+| $D$ | Trove debt in MUSD | | |
+| $M$ | MUSD the vault holds in sMUSD | | |
+| $\text{CR}$ | Collateral ratio of the trove | 200 / 250 / 300% | 200 / 220 / 240% |
+| $b$ | Idle buffer, as a share of the BTC | 3% | 2% |
+| $s$ | veBTC sleeve, as a share of the BTC | up to 25% | 5% |
+| $r_s$ | sMUSD savings rate, per year | | |
+| $r_b$ | Trove interest rate, per year | at most 2% | 1% |
+| $f$ | Mezo's one-time borrow fee | 0.1% | 0.1% |
+| $\sigma$ | Swap slippage limit | 1%, at most 5% | 4% |
+
+The vault charges no fee of any kind. Holders bear only Mezo's costs: the borrow fee, the loan interest and the swap spread on harvests.
+
+## What a share is worth
+
+The vault counts everything it owns in BTC. Call that its raw assets:
+
+$$
+A_{\text{raw}} = I + C + C_{\text{surplus}} + V + \frac{(M - O)(1 \mp \sigma)}{P}
+$$
+
+- $I$ is idle BTC.
+- $C_{\text{surplus}}$ is collateral Mezo holds for the vault after a redemption or liquidation. The vault can claim it.
+- $V$ is BTC locked in veBTC, counted at face value.
+- $O$ is the MUSD the loan owes. It is the debt less Mezo's 200 MUSD gas deposit, which comes back on close.
+
+The MUSD term takes $(1 - \sigma)$ when it is positive and $(1 + \sigma)$ when it is negative. That is what converting it would fetch or cost. The vault always values it against itself.
+
+The share price is the unlocked part of raw assets, over all shares:
+
+$$
+p = \frac{A_{\text{raw}} - L(t)}{S}
+$$
+
+Here $S$ is the fBTC supply and $L(t)$ is profit still unlocking. The vault keeps $M$ just above $O$, so the MUSD term stays close to zero. What a share holds is BTC.
+
+## Sizing the loan
+
+The collateral ratio compares the BTC's value with the debt:
+
+$$
+\text{CR} = \frac{C \cdot P}{D}
+$$
+
+At the target ratio $\text{CR}^*$ the vault borrows
+
+$$
+D^* = \frac{C \cdot P}{\text{CR}^*}, \qquad \text{LTV} = \frac{1}{\text{CR}^*} = \frac{1}{2.5} = 40\%
+$$
+
+Not all BTC goes into the trove. The idle buffer and the sleeve stay outside it:
+
+$$
+C \approx (1 - b - s)\, A_{\text{raw}}
+$$
+
+A rebalance changes the debt only when the ratio leaves the band:
+
+$$
+\Delta D =
+\begin{cases}
+\dfrac{C \cdot P}{\text{CR}^*} - D & \text{if } \text{CR} < \text{CR}_{\min} \text{ or } \text{CR} > \text{CR}_{\max} \\[6pt]
+0 & \text{otherwise}
+\end{cases}
+$$
+
+A negative $\Delta D$ is a repayment from savings. A positive one is new debt, taken only while $r_b \le 2\%$.
+
+## Where the yield comes from
+
+In a year the savings earn $r_s M$ and the loan costs $r_b D$. Because $M \approx D$, the MUSD left over is
+
+$$
+\Pi \approx D\,(r_s - r_b)
+$$
+
+Harvests turn it into BTC. Divide by the vault's size to get a yearly BTC yield:
+
+$$
+y_{\text{loan}} = \frac{D\,(r_s - r_b)}{P \cdot A_{\text{raw}}} = \frac{1 - b - s}{\text{CR}^*}\,(r_s - r_b)
+$$
+
+The second step uses $D = C P / \text{CR}^*$ and $C = (1 - b - s) A_{\text{raw}}$.
+
+With the design settings and no sleeve, the factor is $(1 - 0.03) / 2.5 = 0.388$. So every point of spread between savings and loan becomes 0.388 points of BTC yield.
+
+### The borrow fee
+
+Mezo charges $f = 0.1\%$ once on each new MUSD of debt. The vault buys it back with BTC on the spot. Spread over a holding time of $T$ years, it costs about $f / T$ a year:
+
+$$
+y_{\text{loan}} \approx \frac{1 - b - s}{\text{CR}^*}\left(r_s - r_b - \frac{f}{T}\right)
+$$
+
+So the loan side breaks even when
+
+$$
+r_s = r_b + \frac{f}{T}
+$$
+
+For a one-year hold at a 1% loan rate, that is 1.1%.
+
+### The harvest spread
+
+Each harvest pays the pool's spread on the income it sells. The contract caps it. A harvest of $m$ MUSD must return at least
+
+$$
+\text{BTC}_{\min} = \frac{m\,(1 - \sigma)}{P}
+$$
+
+and a fee buy-back may spend at most $m(1 + \sigma)/P$. The real cost is the pool's spread, which is usually far below the cap.
+
+## The veBTC sleeve
+
+The sleeve earns on its own share $s$ of the BTC:
+
+$$
+y_{\text{sleeve}} = s\,(r_{\text{fee}} + r_{\text{rebate}})
+$$
+
+- $r_{\text{fee}}$ is the sMUSD gauge's MUSD fees per BTC locked, as a yearly rate. They go into savings and leave through the next harvest.
+- $r_{\text{rebate}}$ is Mezo's weekly BTC rebate per BTC locked.
+
+The gauge splits its fees by vote weight:
+
+$$
+\text{fees}_{\text{sleeve}} = F_g \cdot \frac{w_{\text{sleeve}}}{W_g}
+$$
+
+$F_g$ is what the gauge pays in a week, $w_{\text{sleeve}}$ is the sleeve's vote weight and $W_g$ is all weight on the gauge. The share shrinks as more votes pile onto the same gauge.
+
+## Putting it together
+
+$$
+y \approx \underbrace{\frac{1 - b - s}{\text{CR}^*}\left(r_s - r_b - \frac{f}{T}\right)}_{\text{loan}} + \underbrace{s\,(r_{\text{fee}} + r_{\text{rebate}})}_{\text{sleeve}}
+$$
+
+The idle buffer earns nothing. It is the price of instant exits.
+
+### A worked example
+
+Take the design settings with no sleeve and a one-year hold: $b = 3\%$, $s = 0$, $\text{CR}^* = 2.5$, $r_b = 1\%$ and $f = 0.1\%$. Then $y \approx 0.388\,(r_s - 1.1\%)$.
+
+| Savings rate $r_s$ | Spread after costs | BTC yield $y$ |
+| --- | --- | --- |
+| 1.0% | −0.1% | −0.04% |
+| 2.0% | 0.9% | 0.35% |
+| 3.0% | 1.9% | 0.74% |
+| 5.0% | 3.9% | 1.51% |
+
+The table only shows how the pieces scale. Real rates decide where the vault sits on it.
+
+## Mainnet and testnet today
+
+<Callout>
+Figures checked on 2026-10-25. Mainnet and testnet are kept apart on purpose.
+</Callout>
+
+**Mainnet.** The vault is not deployed there yet. Its numbers today:
+
+- sMUSD's income is now mostly interest on Mezo's own 14.5M MUSD of Enclave loans at 1%. It arrives in lumps and averages about 1% a year on 7.38M sMUSD.
+- The last 12 weeks averaged 2.3%. That included a wave of redemption fees from September to October, which has stopped.
+- The vault's own loan would cost about 1.1% all-in. So the loan side roughly breaks even.
+- MUSD trades about 1% under the oracle. That would make a new vault trove the first redemption target.
+- A mainnet launch waits until both improve. The vault deploys with borrowing off either way.
+
+**Testnet.** The live vault runs a 200 / 220 / 240% band, a 2% buffer and a 5% sleeve on a 4-week ladder. Slippage is 4%, because the testnet pool sits about 2.6% under the oracle. Mezo's testnet borrow rate is 1%. The settings are small because the test wallets hold only 0.069 BTC and Mezo's minimum loan is 2,000 MUSD.
+
+The testnet gauge paid about 45.8k MUSD in the Oct 15 epoch against about 6 units of vote weight. That is a testnet artifact. Do not read it as a sleeve yield. On mainnet the gauge's income is mostly MEZO emissions, spread over about 226 votes.
+
+## Profit unlock
+
+New profit reaches the share price linearly over $T = 7$ days. Say a checkpoint at time $t_0$ locks $L_0$ until $t_1$. The profit still locked at time $t$ is
+
+$$
+L(t) =
+\begin{cases}
+L_0 \, \dfrac{t_1 - t}{t_1 - t_0} & t < t_1 \\[6pt]
+0 & t \ge t_1
+\end{cases}
+$$
+
+Every entry point takes a checkpoint first. A new gain $g$ at time $t$ joins what is still locked:
+
+$$
+L' = L(t) + g, \qquad t_1' = t + \frac{L(t)\,(t_1 - t) + g\,T}{L(t) + g}
+$$
+
+Older profit keeps its end and new profit gets the full 7 days. The new end is their mix, weighted by size.
+
+A loss $\ell$ eats locked profit first and keeps the end:
+
+$$
+L' = \max\big(0,\ L(t) - \ell\big)
+$$
+
+Only the part of a loss above $L(t)$ lowers the share price.
+
+Between checkpoints the vault reports
+
+$$
+\text{totalAssets} = \min\big(A_{\text{raw}},\ R - L(t)\big)
+$$
+
+where $R$ is the raw value at the last checkpoint. Gains since then stay hidden until the next checkpoint. Losses show at once. Anyone can call `sync()` to take a checkpoint.
+
+### Why 7 days
+
+A payout $g$ is released over $T$. A holder with a share $\varphi$ of the supply, who stays $h$ days, collects about
+
+$$
+\varphi \, g \, \frac{h}{T}
+$$
+
+Joining just before a payout and leaving right after makes $h$ close to zero. So it earns almost nothing extra. Everyone earns the same per day held.
+
+## Distance to liquidation
+
+Mezo liquidates a trove below 110%. Starting from a ratio $\text{CR}$, the BTC price has to fall by
+
+$$
+\Delta = 1 - \frac{1.10}{\text{CR}}
+$$
+
+| Starting ratio | Drop to liquidation |
+| --- | --- |
+| 250%, the design target | 56% |
+| 220%, the testnet target | 50% |
+| 200%, the band floor | 45% |
+
+That assumes nobody calls `rebalance()` on the way down. A rebalance below 200% repays debt from savings, which pushes the liquidation price further down. The keeper checks every 15 minutes.
+
+On the staging copy of Mezo, a 60% drop in one block got the trove liquidated. The vault kept all its MUSD. Its value fell only by the 200 MUSD reserve and the 1% haircut. See [Testing](/testing).
+
+## Redemptions
+
+Anyone can redeem MUSD for BTC from the troves with the lowest ratio, at the oracle price. If that hits the vault, some BTC collateral turns into MUSD at a fair price, so the share price holds. The next harvest buys the BTC back.

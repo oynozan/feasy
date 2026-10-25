@@ -1,0 +1,425 @@
+/* Nextra's docs theme dressed in the app's tokens, light only like the app */
+
+:root {
+    --white: #f8f3f8;
+    --gray: #282926;
+    --black: #181717;
+    --gold: #f5b400;
+    --second: #ffdb79;
+
+    --secondary: color-mix(in oklab, var(--white), var(--gray) 7%);
+    --muted: color-mix(in oklab, var(--black) 64%, var(--white));
+    --border: color-mix(in oklab, var(--white), var(--gray) 12%);
+    --font-sans: var(--font-google-sans), system-ui, sans-serif;
+    --font-heading: "Akt", var(--font-google-sans), system-ui, sans-serif;
+    --radius-block: 34px;
+    --radius-tile: 22px;
+    --radius-inner: 14px;
+    /* The app's bouncy spring, sampled for CSS */
+    --spring: linear(0, 0.0235, 0.0841, 0.169, 0.2677, 0.372, 0.4757, 0.5744, 0.6651, 0.7458, 0.8157, 0.8747, 0.9231, 0.9617, 0.9914, 1.0133, 1.0287, 1.0385, 1.0439, 1.0459, 1.0453, 1.0429, 1.0391, 1.0347, 1.0299, 1.0252, 1.0205, 1.0163, 1.0125, 1.0091, 1.0063, 1.004, 1.0021, 1.0007, 1);
+
+    /* Gold only ever fills, text on it stays black */
+    --x-color-primary-50: var(--secondary);
+    --x-color-primary-100: var(--second);
+    --x-color-primary-600: var(--black);
+    --x-color-primary-800: var(--black);
+    --x-color-gray-100: var(--secondary);
+    --x-color-gray-200: var(--secondary);
+    --x-color-gray-300: var(--border);
+    --x-color-gray-500: var(--muted);
+    --x-color-gray-600: var(--muted);
+    --x-color-gray-900: var(--black);
+
+    color-scheme: light;
+}
+
+body {
+    font-family: var(--font-sans);
+    color: var(--black);
+    -webkit-font-smoothing: antialiased;
+}
+
+::selection,
+mark {
+    background: var(--second) !important;
+    color: var(--black) !important;
+}
+
+/* Header */
+
+.nextra-navbar-blur {
+    border-color: transparent;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--black);
+}
+
+.logo svg {
+    height: 20px;
+    width: auto;
+}
+
+.logo-name {
+    font-family: var(--font-heading);
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.logo-chip {
+    border-radius: 999px;
+    background: var(--white);
+    padding: 2px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 20px;
+    color: var(--muted);
+}
+
+.nextra-search input {
+    height: 36px;
+    border-radius: 999px;
+    background: var(--white);
+    padding-inline: 16px;
+}
+
+.open-app {
+    display: inline-flex;
+    height: 36px;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    background: var(--gray);
+    padding: 0 12px 0 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--white);
+    transition:
+        transform 0.5s var(--spring),
+        background-color 0.2s;
+}
+
+.open-app svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.5s var(--spring);
+}
+
+.open-app:hover {
+    transform: scale(1.03);
+    background: color-mix(in oklab, var(--gray) 80%, var(--white));
+}
+
+.open-app:hover svg {
+    transform: translate(2px, -2px);
+}
+
+.open-app:active {
+    transform: scale(0.95);
+}
+
+/* Sidebar and table of contents */
+
+.nextra-sidebar a,
+.nextra-sidebar button,
+.nextra-mobile-nav a,
+.nextra-mobile-nav button {
+    border-radius: 999px;
+    padding-inline: 12px;
+    transition:
+        transform 0.5s var(--spring),
+        background-color 0.2s,
+        color 0.2s;
+}
+
+.nextra-sidebar a:active,
+.nextra-mobile-nav a:active {
+    transform: scale(0.96);
+}
+
+.nextra-sidebar a:not([aria-current="page"]):hover,
+.nextra-mobile-nav a:not([aria-current="page"]):hover {
+    background: var(--white);
+}
+
+.nextra-toc a {
+    transition: color 0.2s;
+}
+
+/* The page sits on one white block, like the app's balance block */
+
+article {
+    margin: 8px 0 32px;
+    border-radius: var(--radius-block);
+    background: var(--white);
+    color: var(--black) !important;
+}
+
+@media (min-width: 768px) {
+    article {
+        padding: 40px 48px 32px !important;
+    }
+}
+
+article h1,
+article h2,
+article h3,
+article h4 {
+    font-family: var(--font-heading);
+    font-weight: 700 !important;
+    letter-spacing: -0.02em;
+    color: var(--black) !important;
+}
+
+article h2 {
+    border: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* Copy page */
+article div[class*="x:float-end"] {
+    border: 0;
+    border-radius: 999px;
+    background: var(--secondary);
+}
+
+article p,
+article li {
+    line-height: 1.75;
+}
+
+article a[class*="x:underline"] {
+    text-decoration-color: var(--gold);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.2s;
+}
+
+article a[class*="x:underline"]:hover {
+    text-decoration-color: var(--black);
+}
+
+article :not(pre) > code {
+    border: 0 !important;
+    border-radius: 8px;
+    background: var(--secondary) !important;
+    padding: 2px 6px;
+    font-size: 0.875em;
+}
+
+article pre {
+    border-radius: var(--radius-tile) !important;
+    background: var(--secondary) !important;
+}
+
+article hr {
+    border-color: var(--border);
+}
+
+/* Cards are tiles that spring, the whole tile is the link */
+
+.nextra-cards {
+    gap: 6px !important;
+}
+
+.nextra-card {
+    border: 0 !important;
+    border-radius: var(--radius-tile) !important;
+    background: var(--secondary) !important;
+    box-shadow: none !important;
+    transition:
+        transform 0.5s var(--spring),
+        background-color 0.2s !important;
+}
+
+.nextra-card:hover {
+    transform: scale(1.02);
+    background: var(--second) !important;
+}
+
+.nextra-card:active {
+    transform: scale(0.97);
+}
+
+.nextra-card * {
+    color: var(--black) !important;
+}
+
+/* Tables read as rows, no grid */
+
+article table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+}
+
+article tr {
+    background: transparent !important;
+    border: 0 !important;
+}
+
+article th,
+article td {
+    border: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 10px 20px 10px 0 !important;
+    text-align: left;
+    vertical-align: top;
+}
+
+article th {
+    font-weight: 500 !important;
+    color: var(--muted);
+}
+
+/* Callouts become tiles, warnings wear the second gold */
+
+article div[class*="x:border-blue-700"],
+article div[class*="x:border-green-700"],
+article div[class*="x:border-purple-600"] {
+    border: 0 !important;
+    border-radius: var(--radius-tile) !important;
+    background: var(--secondary) !important;
+    color: var(--black) !important;
+    padding: 4px 20px !important;
+}
+
+article div[class*="x:border-yellow-700"],
+article div[class*="x:border-red-700"] {
+    border: 0 !important;
+    border-radius: var(--radius-tile) !important;
+    background: color-mix(in oklab, var(--second) 55%, var(--white)) !important;
+    color: var(--black) !important;
+    padding: 4px 20px !important;
+}
+
+/* Math */
+
+.katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px 0;
+}
+
+.katex {
+    font-size: 1.08em;
+}
+
+/* Diagrams drawn by pele */
+
+.diagram {
+    margin-top: 1.5em;
+    border-radius: var(--radius-tile);
+    background: var(--secondary);
+    padding: 24px;
+    --pele-font: var(--font-sans);
+    --pele-bg: var(--secondary);
+    --pele-fg: var(--black);
+    --pele-muted: var(--muted);
+    --pele-line: var(--gray);
+    --pele-surface: var(--white);
+    --pele-surface-alt: color-mix(in oklab, var(--secondary), var(--gray) 5%);
+    --pele-border: var(--border);
+    --pele-accent: var(--gold);
+    --pele-critical: #e5484d;
+    --pele-radius: 10px;
+    --pele-heading-weight: 600;
+    --pele-title-weight: 700;
+    --pele-series-1: var(--gold);
+    --pele-series-2: var(--gray);
+    --pele-series-3: var(--second);
+    --pele-series-4: var(--muted);
+}
+
+/* Gantt labels default to the background color, unreadable on gold */
+.diagram .pele-task .pele-label {
+    fill: var(--black);
+}
+
+.diagram svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Footer */
+
+.site-footer {
+    margin: 0 auto;
+    max-width: var(--nextra-content-width);
+    padding: 48px max(env(safe-area-inset-right), 1.5rem) 40px max(env(safe-area-inset-left), 1.5rem);
+}
+
+.site-footer-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    border-radius: var(--radius-block);
+    background: var(--gold);
+    padding: 32px;
+}
+
+.site-footer-brand p {
+    margin-top: 12px;
+    font-size: 15px;
+    color: color-mix(in oklab, var(--black) 76%, var(--gold));
+}
+
+.site-footer-brand .logo-chip {
+    background: color-mix(in oklab, var(--white) 55%, var(--gold));
+    color: var(--black);
+}
+
+.site-footer nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.site-footer nav a {
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--white) 55%, var(--gold));
+    padding: 6px 14px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--black);
+    transition:
+        transform 0.5s var(--spring),
+        background-color 0.2s;
+}
+
+.site-footer nav a:hover {
+    transform: scale(1.04);
+    background: var(--white);
+}
+
+.site-footer nav a:active {
+    transform: scale(0.95);
+}
+
+.site-footer-base {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 16px 8px 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        transition-duration: 0s !important;
+    }
+}

@@ -1,0 +1,44 @@
+# Testing
+
+Mezo's BTC token and price oracle are precompiles. Forks can't run them. So Feasy is tested against Mezo itself, in four ways.
+
+| Layer | What it is |
+| --- | --- |
+| Preflight | 42 scenarios, each a single `eth_call` against live testnet contracts. Only Feasy's own code and its BTC balance are injected. |
+| Live transactions | Real deposits, loans, harvests, exits, queue fills and veBTC locks on testnet, each linked in the deployment logs |
+| Staging | A private copy of Mezo's own MUSD code on testnet, where the price and rate can be moved |
+| Coverage | A Foundry suite on Mezo's real MUSD, savings, DEX and Mezo Earn code. Only the BTC precompile is stood in. |
+
+No Mezo contract is ever mocked. The one stand-in is the BTC precompile in the coverage suite, because Mezo publishes no testable version.
+
+## Staging shocks
+
+The live oracle can't be moved. So price shocks ran on a private copy of Mezo's MUSD system, deployed on testnet from Mezo's own code. Every check is in [`staging-log.md`](https://github.com/oynozan/feasy/blob/main/deployments/staging-log.md).
+
+| Phase | What happened | Result |
+| --- | --- | --- |
+| Redemption | 300 MUSD redeemed from the vault's trove, later a full redemption | The share value held. A stranger's `rebalance()` claimed the surplus collateral. |
+| Band | BTC −25%, then +50% | Repaid, then borrowed back to 250% from savings. No BTC sold. |
+| Rates | Mezo at 3%, then 1.5%, then 1% | No new debt above the 2% limit. Refinanced and borrowed to target at 1%. |
+| −50% in one block | Trove at 125%, Mezo in Recovery Mode | Exits limited to idle BTC. `rebalance()` repaid to 250% and lifted the system out. |
+| −60% in one block | Trove at 100%, liquidated | The vault kept all its MUSD. A stranger's harvest and both exits worked. |
+| Close refused | The rest of the system under 150% | The trove stays at the floor. Exits stop at the 150% line. |
+| Last trove | The other borrower was liquidated | Exits go through `withdrawColl`. |
+
+v6 ran five more phases on the same copy, with all 55 checks passing.
+
+| Phase | What happened | Result |
+| --- | --- | --- |
+| Recovery Mode with the queue | BTC −50%, a holder queues every share | Fills used idle BTC only. Once the price returned, `processQueue` freed collateral. Value per share held at every fill. |
+| Liquidation | BTC −60%, Mezo's real `liquidate` | `totalAssets` fell by exactly the loss minus the standing lock. A request made before the crash lost the same per share. |
+| Redemption | The vault's trove redeemed in full | The profit lock absorbed the 1% haircut. |
+| Stale oracle | The price two hours old | `claim` and `requestRedeem` still worked. Every pricing entry point reverted. |
+| Payouts inside withdraw | sMUSD pays out during the vault's own withdraw | `sync` locked the gain with `totalAssets` continuous to the wei. |
+
+## The veBTC cycle
+
+A testnet can't skip ahead to Thursday. So v7's weekly cycle also ran on a local chain built from Mezo's verified veBTC, Voter and gauge sources. All 17 lifecycle steps passed.
+
+## Precompile budget
+
+Mezo allows 20 precompile calls per transaction. The 21st burns all its gas, even inside `try`. The vault reads the price once per transaction into a snapshot. The heaviest rebalance uses about 13 calls. The heaviest `roll()` uses 15: the price twice, four rebates, four withdraws, one sweep and two new locks.

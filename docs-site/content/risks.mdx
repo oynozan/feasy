@@ -1,0 +1,42 @@
+import { Callout } from "nextra/components";
+
+# Risks
+
+<Callout type="error">
+Feasy is unaudited. It runs on Mezo testnet only.
+</Callout>
+
+The v5 code had four independent review passes and the staging phases. v6 had a design review before it was written. The v7 sleeve had a review pass, and its weekly cycle ran on a local chain built from Mezo's verified code. Every finding is fixed or listed here.
+
+## Market
+
+- **Liquidation.** The loan is liquidated only after a BTC drop of about 56% with nobody calling `rebalance()`. On staging, a 50% drop in one block left the trove at 125%. A 60% drop got it liquidated. The vault kept its MUSD and lost only the 200 MUSD liquidation reserve.
+- **Redemptions.** A redemption against the vault's trove swaps some BTC for MUSD at the oracle price. The next harvest buys the BTC back.
+- **Thin pools.** The mainnet MUSD/BTC pool is thin. Harvests there should be chunked with `harvest(maxIn)`.
+- **Pool far from the oracle.** If the pool cannot fill the fee buy-back within the slippage limit, the gap stays. Part of the collateral then stays locked until yield covers it, or the owner raises slippage. The cap is 5%.
+
+## Yield
+
+- **Spread.** The loan side earns only while sMUSD pays more than the loan costs. On mainnet today they roughly cancel out. See [Economics](/economics#mainnet-and-testnet-today).
+- **Timing.** Profit reaches the share price over 7 days. A payout that accrued while one group held is released to whoever holds the week after. Small losses leave the share price flat and slow the release.
+- **Borrowing off by default.** New vaults deploy with borrowing off. Until the owner turns it on, deposits sit idle and earn nothing.
+
+## Liquidity
+
+- **Locked BTC.** Up to the sleeve's share of the BTC is locked for up to `lockWeeks` weeks. An exit larger than the liquid part waits for the next lock to end.
+- **Recovery Mode.** Mezo blocks collateral withdrawals. Instant exits are limited to idle BTC. Larger exits wait in the queue.
+- **Queue order.** Requests are paid first come, first served. A request cannot be cancelled.
+- **Last trove.** If the vault holds Mezo's only trove, Mezo never lets it close. Exits stop at the collateral the 2,000 MUSD minimum needs.
+- **Oracle outage.** If the price is more than 60 seconds old, Mezo halts borrowing and so does the vault. Deposits and withdrawals revert until it is fresh.
+
+## Mezo Earn
+
+- veBTC, the Voter and the booster are upgradeable. The sleeve checks its wiring before every new lock, and the keeper pauses new locks when they change.
+- If Mezo swaps the Voter, a voted lock cannot be withdrawn until Mezo re-adds the old voter as a secondary one.
+- The rebate gas limit after a quiet Thursday flip is covered by the keeper's checkpoint. See [veBTC sleeve](/vebtc-sleeve#safety).
+
+## Keys
+
+- **Owner.** A 24-hour timelock. Every change is public for a day first. It cannot move user funds.
+- **Guardian.** It can only reduce risk. A leaked key can cost a borrow fee and a buy-back spread per unwind.
+- **Keeper.** Its own key, separate from the owner. It cannot move user funds.

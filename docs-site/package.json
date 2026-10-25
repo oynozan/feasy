@@ -1,0 +1,30 @@
+{
+    "name": "@feasy/docs",
+    "version": "0.1.0",
+    "private": true,
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind --exclude-selectors .katex-mathml",
+        "start": "next start"
+    },
+    "dependencies": {
+        "@heroicons/react": "^2.2.0",
+        "katex": "^0.16.47",
+        "next": "^16.4.3",
+        "nextra": "^4.6.1",
+        "nextra-theme-docs": "^4.6.1",
+        "pele": "^1.10.0",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.5",
+        "@types/react": "^19.3.0",
+        "pagefind": "^1.5.2",
+        "typescript": "^6.0.3"
+    },
+    "overrides": {
+        "zod": "4.1.13"
+    }
+}

@@ -1,0 +1,52 @@
+# Contracts
+
+The live vault is v7 on Mezo testnet, chain id 31611. All contracts are verified on Sourcify with an exact match.
+
+## Testnet
+
+| Contract | Address |
+| --- | --- |
+| Vault v7 (fBTC) | [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6) |
+| Withdrawal queue | [`0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3`](https://explorer.test.mezo.org/address/0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3) |
+| veBTC sleeve | [`0xee76C202a9e43988c55DC86816a6c14211Db209B`](https://explorer.test.mezo.org/address/0xee76C202a9e43988c55DC86816a6c14211Db209B) |
+| SystemMath library | [`0x34df486c93DB9a2A263498df97BDDF04BF1d57f7`](https://explorer.test.mezo.org/address/0x34df486c93DB9a2A263498df97BDDF04BF1d57f7) |
+| Owner, 24-hour timelock | [`0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719`](https://explorer.test.mezo.org/address/0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719) |
+| Guardian | `0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE` |
+| Keeper | `0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23` |
+
+The vault creates the queue and the sleeve. The sleeve's settings belong to the vault's owner.
+
+### Retired vaults
+
+| Vault | Address | State |
+| --- | --- | --- |
+| v6 | [`0xb7A15aB24483Dfe92056F73279ECF11CE00675db`](https://explorer.test.mezo.org/address/0xb7A15aB24483Dfe92056F73279ECF11CE00675db) | Loan unwound, holders moved to v7 |
+| v5 | [`0x2964612e8976b4003083E6014cA39f5fD7b41f3A`](https://explorer.test.mezo.org/address/0x2964612e8976b4003083E6014cA39f5fD7b41f3A) | Loan closed, holders moved to v6 |
+
+The app shows a Move row for anyone with shares in a retired vault.
+
+## Source
+
+| File | Role |
+| --- | --- |
+| [`Vault.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/Vault.sol) | The ERC-4626 vault, the trove, savings and harvests |
+| [`RedeemQueue.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/RedeemQueue.sol) | The first-come, first-served exit queue |
+| [`VeSleeve.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/VeSleeve.sol) | The weekly veBTC ladder |
+| [`ProfitLock.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/ProfitLock.sol) | The 7-day linear profit release |
+| [`SystemMath.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/SystemMath.sol) | Mezo system ratio math, linked to keep the vault under the size limit |
+
+## Mezo contracts used
+
+| Mezo contract | Used for |
+| --- | --- |
+| BorrowerOperations | Open, adjust, refinance, close and claim collateral |
+| TroveManager | Debt, collateral, status, rate and Recovery Mode reads |
+| PriceFeed | The BTC price for share pricing and swap limits |
+| HintHelpers, SortedTroves | Insert hints, so large moves never walk the whole trove list |
+| MUSD Savings Vault (sMUSD) | Deposit, withdraw, claim yield, value from the yield index |
+| Mezo DEX Router | Harvests and fee buy-backs in the MUSD/BTC pool |
+| veBTC | Create, grow and withdraw locks |
+| Pools Voter | Vote, poke and reset |
+| sMUSD gauge rewards | Fee and bribe rewards in MUSD |
+| RewardsDistributor | The weekly BTC rebate |
+| ChainFeeSplitter | `updatePeriod`, run by the keeper when Mezo has not |
