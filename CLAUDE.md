@@ -1,0 +1,2 @@
+- 4 TAB spaces
+- No long comment lines, read comment line skill

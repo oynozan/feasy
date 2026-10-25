@@ -1,0 +1,110 @@
+# Coverage suite for contracts/src, run forge coverage --ir-minimum from here, deployments build in contracts/
+# Mezo's own MUSD, sMUSD, tigris and Mezo Earn code run locally, only the BTC precompile is a stand-in
+[profile.default]
+src = "coverage/src"
+test = "coverage/test"
+script = "coverage/script"
+out = "coverage/out"
+cache_path = "coverage/cache"
+libs = ["coverage/lib", "contracts/lib", "staging/lib"]
+# veBTC was deployed for osaka, but osaka breaks coverage source mapping, so everything targets london
+evm_version = "london"
+optimizer = true
+optimizer_runs = 200
+# Unoptimized coverage builds of Mezo's contracts exceed 24,576 bytes
+code_size_limit = 1000000
+fs_permissions = [{ access = "read", path = "./coverage/out" }]
+gas_limit = 9223372036854775807
+auto_detect_remappings = false
+# Foundry lets a plain remapping beat a context one, so every OpenZeppelin user gets a context
+remappings = [
+    "forge-std/=contracts/lib/forge-std/src/",
+    "vault/=contracts/src/",
+    "musd/=staging/lib/musd/solidity/contracts/",
+    "savings/=staging/src/savings/contracts/",
+    "tigris/=coverage/lib/tigris/solidity/contracts/",
+    "contracts/src/:@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+    "coverage/test/:@openzeppelin/contracts/=contracts/lib/openzeppelin-contracts/contracts/",
+    "coverage/src/MezoSystem.sol:@openzeppelin/contracts/=staging/lib/openzeppelin-contracts/contracts/",
+    "coverage/src/earn/BoostVoter/:@openzeppelin/contracts/=coverage/src/earn/BoostVoter/@openzeppelin/contracts/",
+    "coverage/src/earn/BoostVoter/:@openzeppelin/contracts-upgradeable/=coverage/src/earn/BoostVoter/@openzeppelin/contracts-upgradeable/",
+    "coverage/src/earn/ChainFeeSplitter/:@openzeppelin/contracts/=coverage/src/earn/ChainFeeSplitter/@openzeppelin/contracts/",
+    "coverage/src/earn/FactoryRegistry/:@openzeppelin/contracts/=coverage/src/earn/FactoryRegistry/@openzeppelin/contracts/",
+    "coverage/src/earn/GaugeFactory/:@openzeppelin/contracts/=coverage/src/earn/GaugeFactory/@openzeppelin/contracts/",
+    "coverage/src/earn/MEZOEcosystemSplitter/:@openzeppelin/contracts/=coverage/src/earn/MEZOEcosystemSplitter/@openzeppelin/contracts/",
+    "coverage/src/earn/ManagedRewardsFactory/:@openzeppelin/contracts/=coverage/src/earn/ManagedRewardsFactory/@openzeppelin/contracts/",
+    "coverage/src/earn/MezoForwarder/:@openzeppelin/contracts/=coverage/src/earn/MezoForwarder/@openzeppelin/contracts/",
+    "coverage/src/earn/RewardsDistributor/:@openzeppelin/contracts/=coverage/src/earn/RewardsDistributor/@openzeppelin/contracts/",
+    "coverage/src/earn/ThirdPartyVoter/:@openzeppelin/contracts/=coverage/src/earn/ThirdPartyVoter/@openzeppelin/contracts/",
+    "coverage/src/earn/ThirdPartyVoter/:@openzeppelin/contracts-upgradeable/=coverage/src/earn/ThirdPartyVoter/@openzeppelin/contracts-upgradeable/",
+    "coverage/src/earn/TransparentUpgradeableProxy/:@openzeppelin/contracts/=coverage/src/earn/TransparentUpgradeableProxy/@openzeppelin/contracts/",
+    "coverage/src/earn/VaultGauge/:@openzeppelin/contracts/=coverage/src/earn/VaultGauge/@openzeppelin/contracts/",
+    "coverage/src/earn/VeBTC/:@openzeppelin/contracts/=coverage/src/earn/VeBTC/@openzeppelin/contracts/",
+    "coverage/src/earn/VeBTC/:@openzeppelin/contracts-upgradeable/=coverage/src/earn/VeBTC/@openzeppelin/contracts-upgradeable/",
+    "coverage/src/earn/VeMEZO/:@openzeppelin/contracts/=coverage/src/earn/VeMEZO/@openzeppelin/contracts/",
+    "coverage/src/earn/VeMEZO/:@openzeppelin/contracts-upgradeable/=coverage/src/earn/VeMEZO/@openzeppelin/contracts-upgradeable/",
+    "coverage/src/earn/Voter/:@openzeppelin/contracts/=coverage/src/earn/Voter/@openzeppelin/contracts/",
+    "coverage/src/earn/Voter/:@openzeppelin/contracts-upgradeable/=coverage/src/earn/Voter/@openzeppelin/contracts-upgradeable/",
+    "coverage/src/earn/VotingRewardsFactory/:@openzeppelin/contracts/=coverage/src/earn/VotingRewardsFactory/@openzeppelin/contracts/",
+    "coverage/lib/tigris/:@openzeppelin/contracts/=coverage/lib/oz49/contracts/",
+    "staging/lib/musd/:@openzeppelin/contracts/=staging/lib/openzeppelin-contracts/contracts/",
+    "staging/lib/musd/:@openzeppelin/contracts-upgradeable/=staging/lib/openzeppelin-contracts-upgradeable/contracts/",
+    "staging/lib/openzeppelin-contracts-upgradeable/:@openzeppelin/contracts/=staging/lib/openzeppelin-contracts/contracts/",
+    "staging/src/savings/:@openzeppelin/=staging/src/savings/@openzeppelin/",
+]
+
+# Libraries sit at their Mezo testnet addresses, the sleeve test base etches their code there
+libraries = [
+    "coverage/src/earn/VeBTC/contracts/ve/Balance.sol:Balance:0x9c13415B184810B0E43D5Cf7b94052DD0743E54C",
+    "coverage/src/earn/VeBTC/contracts/ve/Delegation.sol:Delegation:0xf7664152fF5885830C4609280410392Dc93C7F9f",
+    "coverage/src/earn/VeBTC/contracts/ve/Escrow.sol:Escrow:0xe68CC8Cd0F92bbe926e7aa93825CD2E3BADC7F27",
+    "coverage/src/earn/VeBTC/contracts/ve/Grant.sol:Grant:0xd6bcCC4beBcA1C742E13d3cD23ED723b02a2927B",
+    "coverage/src/earn/VeBTC/contracts/ve/ManagedNFT.sol:ManagedNFT:0xb949778ad86A086Ba9C93CA53F5f314C49cbB76d",
+    "coverage/src/earn/VeBTC/contracts/ve/NFT.sol:NFT:0xC6182dA862739B89a5D74e884A759463294B930C",
+    "coverage/src/earn/VeMEZO/contracts/ve/Balance.sol:Balance:0x9c13415B184810B0E43D5Cf7b94052DD0743E54C",
+    "coverage/src/earn/VeMEZO/contracts/ve/Delegation.sol:Delegation:0xf7664152fF5885830C4609280410392Dc93C7F9f",
+    "coverage/src/earn/VeMEZO/contracts/ve/Escrow.sol:Escrow:0xe68CC8Cd0F92bbe926e7aa93825CD2E3BADC7F27",
+    "coverage/src/earn/VeMEZO/contracts/ve/Grant.sol:Grant:0xd6bcCC4beBcA1C742E13d3cD23ED723b02a2927B",
+    "coverage/src/earn/VeMEZO/contracts/ve/ManagedNFT.sol:ManagedNFT:0xb949778ad86A086Ba9C93CA53F5f314C49cbB76d",
+    "coverage/src/earn/VeMEZO/contracts/ve/NFT.sol:NFT:0xC6182dA862739B89a5D74e884A759463294B930C",
+]
+
+# Every source keeps its deployed compiler and runs, the vault only fits through IR
+additional_compiler_profiles = [
+    { name = "earn33", optimizer_runs = 100, evm_version = "london" },
+    { name = "earn24", optimizer_runs = 100, evm_version = "london" },
+    { name = "proxy", optimizer_runs = 200, evm_version = "paris" },
+    { name = "mezo", optimizer_runs = 200, evm_version = "london" },
+    { name = "ir", evm_version = "london", via_ir = true },
+]
+compilation_restrictions = [
+    { paths = "contracts/src/**", evm_version = "london", via_ir = true },
+    { paths = "coverage/test/**", evm_version = "london", via_ir = true },
+    { paths = "coverage/src/MezoSystem.sol", version = "=0.8.24", optimizer_runs = 200, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/Savings.sol", version = "=0.8.33", optimizer_runs = 200, evm_version = "london", via_ir = false },
+    { paths = "staging/lib/musd/**", version = "=0.8.24", optimizer_runs = 200, evm_version = "london", via_ir = false },
+    { paths = "staging/src/savings/**", version = "=0.8.33", optimizer_runs = 200, evm_version = "london", via_ir = false },
+    { paths = "coverage/lib/tigris/**", version = "=0.8.24", optimizer_runs = 200, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/VeBTC/**", version = "=0.8.33", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/VeMEZO/**", version = "=0.8.33", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/TransparentUpgradeableProxy/**", version = "=0.8.20", optimizer_runs = 200, evm_version = "paris", via_ir = false },
+    { paths = "coverage/src/earn/BoostVoter/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/ChainFeeSplitter/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/FactoryRegistry/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/GaugeFactory/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/MEZOEcosystemSplitter/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/ManagedRewardsFactory/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/MezoForwarder/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/RewardsDistributor/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/ThirdPartyVoter/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/VaultGauge/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/Voter/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+    { paths = "coverage/src/earn/VotingRewardsFactory/**", version = "=0.8.24", optimizer_runs = 100, evm_version = "london", via_ir = false },
+]
+
+[fuzz]
+runs = 256
+
+[fmt]
+tab_width = 4
+line_length = 100

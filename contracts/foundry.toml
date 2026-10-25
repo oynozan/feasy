@@ -1,0 +1,32 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc_version = "0.8.28"
+# Without PUSH0 or transient storage the bytecode runs on older Mezo node versions too
+evm_version = "london"
+optimizer = true
+optimizer_runs = 200
+# The vault only fits under the 24,576 byte contract limit with the IR pipeline
+via_ir = true
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+fs_permissions = [{ access = "read-write", path = "./deployments" }]
+
+[fuzz]
+runs = 5000
+
+# A reverting handler step is a failed check, forge drops it silently unless told otherwise
+[invariant]
+runs = 256
+depth = 64
+fail_on_revert = true
+
+[rpc_endpoints]
+mezo_testnet = "https://rpc.test.mezo.org"
+
+[fmt]
+tab_width = 4
+line_length = 100

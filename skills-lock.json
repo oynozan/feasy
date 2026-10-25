@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "clean-comment-lines": {
+      "source": "oynozan/clean-comment-lines",
+      "sourceType": "github",
+      "skillPath": "skills/clean-comment-lines/SKILL.md",
+      "computedHash": "c0a798fb0ae257b3c01f5294d5d18a099337490c58cc728239f194631e969d82"
+    }
+  }
+}

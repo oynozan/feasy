@@ -1,0 +1,13 @@
+.env
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+node_modules/
+private/
+staging/out/
+staging/cache/
+coverage/out/
+coverage/cache/
+lcov.info
+__pycache__/
+.claude/scheduled_tasks.lock
