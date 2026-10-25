@@ -11,6 +11,14 @@ export const LIQUIDATION_CR = 1.1;
 
 export type Trove = { active: boolean; coll: bigint; debt: bigint };
 
+export type LoanState = "open" | "paused" | "waiting" | "off";
+
+// v6 starts with borrowing off, and its guardian can pause borrowing or close the loan
+export function loanState(trove: Trove, borrowing: boolean): LoanState {
+    if (trove.active) return borrowing ? "open" : "paused";
+    return borrowing ? "waiting" : "off";
+}
+
 // Same rounding as the vault's convertToAssets
 export function sharesToAssets(shares: bigint, totalAssets: bigint, totalSupply: bigint) {
     return (shares * (totalAssets + 1n)) / (totalSupply + VIRTUAL_SHARES);
@@ -41,11 +49,14 @@ type YieldInput = {
     totalAssets: bigint;
     price: bigint;
     targetCR: bigint;
+    borrowing: boolean;
 };
 
 // Savings income minus loan interest, as a yearly share of the vault's BTC
 export function vaultYield(v: YieldInput) {
     if (!v.trove.active || v.totalAssets === 0n || v.price === 0n) {
+        // Idle BTC earns nothing, with borrowing on quote what a loan at the target ratio would earn
+        if (!v.borrowing) return 0;
         // ponytail: with no loan open, quote the rate the loan would earn at the target ratio
         return (v.savingsApr - v.currentRateBps / 1e4) / (Number(v.targetCR) / 1e18);
     }

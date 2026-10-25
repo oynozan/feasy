@@ -3,6 +3,7 @@ import test from "node:test";
 import {
     btcParts,
     LIQUIDATION_CR,
+    loanState,
     priceAtRatio,
     formatBtc,
     ratioOf,
@@ -32,6 +33,18 @@ test("loan ratio and liquidation headroom", () => {
     assert.equal(ratioOf({ active: false, coll: 0n, debt: 0n }, WAD), null);
 });
 
+const idleInput = () => ({
+    savingsApr: 0.05,
+    trove: { active: false, coll: 0n, debt: 0n },
+    troveRateBps: 0,
+    currentRateBps: 100,
+    savings: 0n,
+    totalAssets: 0n,
+    price: 0n,
+    targetCR: 25n * 10n ** 17n,
+    borrowing: true,
+});
+
 test("yield", () => {
     assert.ok(Math.abs(savingsApr(WAD + WAD / 20n, WAD, YEAR) - 0.05) < 1e-9);
     // No loan, 5% savings and 1% borrow at 250% earns (5 - 1) / 2.5 = 1.6%
@@ -44,8 +57,11 @@ test("yield", () => {
         totalAssets: 0n,
         price: 0n,
         targetCR: 25n * 10n ** 17n,
+        borrowing: true,
     });
     assert.ok(Math.abs(idle - 0.016) < 1e-9);
+    // With borrowing off and no loan the BTC sits idle and earns nothing
+    assert.equal(vaultYield({ ...idleInput(), borrowing: false }), 0);
     // The PDF example, 1 BTC at $100k with $40k borrowed and parked earns 1.6%
     const open = vaultYield({
         savingsApr: 0.05,
@@ -56,6 +72,7 @@ test("yield", () => {
         totalAssets: WAD,
         price: 100_000n * WAD,
         targetCR: 25n * 10n ** 17n,
+        borrowing: true,
     });
     assert.ok(Math.abs(open - 0.016) < 1e-9);
 });
@@ -73,4 +90,13 @@ test("btc formatting", () => {
     assert.equal(formatBtc(60_000_000_000_000_000n), "0.06000000");
     assert.equal(formatBtc(-12_000_000_000_000n), "-0.00001200");
     assert.equal(formatBtc(0n), "0.00000000");
+});
+
+test("loan state", () => {
+    const open = { active: true, coll: 1n, debt: 1n };
+    const none = { active: false, coll: 0n, debt: 0n };
+    assert.equal(loanState(open, true), "open");
+    assert.equal(loanState(open, false), "paused");
+    assert.equal(loanState(none, true), "waiting");
+    assert.equal(loanState(none, false), "off");
 });

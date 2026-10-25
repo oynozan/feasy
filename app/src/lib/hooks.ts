@@ -68,6 +68,7 @@ export function useVault() {
             { ...vault, functionName: "maxWithdraw", args: [user] },
             { ...vault, functionName: "maxRedeem", args: [user] },
             { ...vault, functionName: "maxDeposit", args: [user] },
+            { ...vault, functionName: "borrowingEnabled" },
         ],
         query: { refetchInterval: 12_000 },
     });
@@ -75,7 +76,7 @@ export function useVault() {
     if (!data) return { isPending, data: undefined };
     const [price, lastPrice, totalAssets, totalSupply, trove, savingsValue, targetCR, minCR, troveRate, rate, ...rest] =
         data;
-    const [shares, maxWithdraw, maxRedeem, maxDeposit] = rest;
+    const [shares, maxWithdraw, maxRedeem, maxDeposit, borrowing] = rest;
     const t = trove.result as Trove | undefined;
     const assets = totalAssets.result ?? 0n;
     const supply = totalSupply.result ?? 0n;
@@ -99,6 +100,7 @@ export function useVault() {
             maxWithdraw: maxWithdraw.result ?? 0n,
             maxRedeem: maxRedeem.result ?? 0n,
             maxDeposit: maxDeposit.result ?? 0n,
+            borrowing: (borrowing.result as boolean | undefined) ?? true,
         },
     };
 }

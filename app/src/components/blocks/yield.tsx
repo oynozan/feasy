@@ -7,20 +7,30 @@ import { ArrowRightIcon, BookOpenIcon } from "@heroicons/react/20/solid";
 import { motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVault, useYield } from "@/lib/hooks";
-import { btcParts } from "@/lib/math";
+import { btcParts, loanState, type LoanState } from "@/lib/math";
 import { flow, springy } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
 const figure = "font-heading text-[34px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums";
 
+// What the yield means for where the loan stands
+export function yieldTip(state: LoanState | undefined) {
+    if (state === "off") {
+        return "The pool isn’t borrowing right now, so its BTC sits idle and earns nothing. The yield starts once borrowing is turned on.";
+    }
+    if (state === "paused") {
+        return "Borrowing is paused, so the pool won’t borrow more, but what it already saved keeps earning. If today’s rates hold, a year in the pool adds this much to your BTC.";
+    }
+    return "If today’s rates hold, a year in the pool adds this much to your BTC. You can take it out whenever you like.";
+}
+
 export function Yield() {
     const value = useYield();
+    const { data } = useVault();
     return (
         <Block>
             <BlockHeader>
-                <BlockLabel tip="If today’s rates hold, a year in the pool adds this much to your BTC. You can take it out whenever you like.">
-                    Yearly yield
-                </BlockLabel>
+                <BlockLabel tip={yieldTip(data && loanState(data.trove, data.borrowing))}>Yearly yield</BlockLabel>
             </BlockHeader>
             <div className="mt-auto flex h-12 items-center">
                 <Reveal ready={value !== undefined} placeholder={<Skeleton className="h-9 w-36" />}>

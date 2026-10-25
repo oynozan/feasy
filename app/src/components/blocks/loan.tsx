@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { smoothPath } from "@/lib/chart-path";
 import { useBtcHistory, useVault } from "@/lib/hooks";
-import { LIQUIDATION_CR, priceAtRatio, ratioOf } from "@/lib/math";
+import { LIQUIDATION_CR, loanState, priceAtRatio, ratioOf } from "@/lib/math";
 import { flow, pop } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
@@ -36,10 +36,13 @@ export function Loan() {
     const liquidation = ratio ? priceAtRatio(price, ratio, LIQUIDATION_CR) : null;
     const [active, setActive] = useState<number | null>(null);
 
+    const state = data && loanState(data.trove, data.borrowing);
     const tip =
         repay && liquidation
-            ? `The pool borrows dollars against its BTC. If BTC drops to ${usd.format(repay)}, the pool pays part of the loan back from its savings. Only below ${usd.format(liquidation)} could the loan be liquidated.`
-            : "The pool borrows dollars against its BTC once enough BTC is in. No loan is open right now.";
+            ? `The pool borrows dollars against its BTC. If BTC drops to ${usd.format(repay)}, the pool pays part of the loan back from its savings. Only below ${usd.format(liquidation)} could the loan be liquidated.${state === "paused" ? " Borrowing is paused, so the loan won’t grow." : ""}`
+            : state === "off"
+              ? "The pool isn’t borrowing right now, so its BTC sits idle. It opens a loan once borrowing is turned on."
+              : "The pool borrows dollars against its BTC once enough BTC is in. No loan is open right now.";
     const shown = active !== null && history ? history[active][1] : price;
 
     return (

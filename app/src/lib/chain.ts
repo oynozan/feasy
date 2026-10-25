@@ -20,6 +20,7 @@ export const vault = {
         "function lastPrice() view returns (uint256)",
         "function minCR() view returns (uint256)",
         "function targetCR() view returns (uint256)",
+        "function borrowingEnabled() view returns (bool)",
         "function depositBTC(address receiver) payable returns (uint256)",
         "function withdraw(uint256 assets, address receiver, address owner) returns (uint256)",
         "function redeem(uint256 shares, address receiver, address owner) returns (uint256)",

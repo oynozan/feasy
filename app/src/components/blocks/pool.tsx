@@ -18,12 +18,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EXPLORER } from "@/lib/chain";
 import { smoothPath } from "@/lib/chart-path";
 import { useSavingsApr, useVault, useYield } from "@/lib/hooks";
-import { btcParts, formatBtc, LIQUIDATION_CR, priceAtRatio, ratioOf, WAD } from "@/lib/math";
+import { btcParts, formatBtc, LIQUIDATION_CR, loanState, priceAtRatio, ratioOf, WAD } from "@/lib/math";
 import { flow, pop, rise, springy } from "@/lib/motion";
 import { usePoolHistory, usePoolState, type PoolEvent, type PoolSample } from "@/lib/pool";
 import { cn } from "@/lib/utils";
 import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, Reveal } from "../block";
 import { Wordmark } from "../frame";
+import { yieldTip } from "./yield";
 
 // Headroom over the highest sample as a share of the chart, so a flat pool reads as a level line
 const HEADROOM = 0.12;
@@ -406,10 +407,11 @@ function SinceLaunch({ launch, sample }: { launch: number | undefined; sample: P
 
 function YearlyYield() {
     const value = useYield();
+    const { data } = useVault();
     return (
         <Tile
             label="Yearly yield"
-            tip="If today’s rates hold, a year in the pool adds this much to every BTC in it. You can take yours out whenever you like."
+            tip={yieldTip(data && loanState(data.trove, data.borrowing))}
             ready={value !== undefined}
             placeholder={<Skeleton className="h-9 w-36" />}
         >
@@ -440,8 +442,10 @@ function LoanHealth() {
         ratio === undefined || !data
             ? "How much the pool’s BTC is worth against the dollars it borrowed."
             : ratio === null
-              ? "No loan is open right now. The pool borrows against its BTC once enough of it is in."
-              : `The pool’s BTC is worth ${percent(ratio)} of its loan and is steered back to ${percent(Number(data.targetCR) / 1e18)}. If BTC falls to ${usd.format(priceAtRatio(price, ratio, Number(data.minCR) / 1e18))} it repays some of the loan from savings, and only at ${usd.format(priceAtRatio(price, ratio, LIQUIDATION_CR))} could it be liquidated.`;
+              ? data.borrowing
+                  ? "No loan is open right now. The pool borrows against its BTC once enough of it is in."
+                  : "The pool isn’t borrowing right now, so its BTC sits idle. It opens a loan once borrowing is turned on."
+              : `The pool’s BTC is worth ${percent(ratio)} of its loan and is steered back to ${percent(Number(data.targetCR) / 1e18)}. If BTC falls to ${usd.format(priceAtRatio(price, ratio, Number(data.minCR) / 1e18))} it repays some of the loan from savings, and only at ${usd.format(priceAtRatio(price, ratio, LIQUIDATION_CR))} could it be liquidated.${data.borrowing ? "" : " Borrowing is paused, so the loan won’t grow."}`;
 
     return (
         <Tile
