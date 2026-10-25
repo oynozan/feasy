@@ -89,7 +89,13 @@ v6 ran five more phases on the same private copy (vault `0xf3C2…6D30`). All 55
 
 ## Try it
 
-Requirements: Foundry, Python 3, `jq`.
+The web app runs from one command with Docker, on http://localhost:3000. Set `MEZO_NETWORK=mainnet` for a mainnet build and `PORT` to change the port.
+
+```bash
+docker compose up -d --build
+```
+
+The scripts below need Foundry, Python 3 and `jq`.
 
 ```bash
 bash scripts/new-wallet.sh ALICE          # wallets land in .env (gitignored)

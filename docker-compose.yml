@@ -1,0 +1,10 @@
+# docker compose up -d --build serves the app on http://localhost:3000
+services:
+    app:
+        build:
+            context: ./app
+            args:
+                NEXT_PUBLIC_MEZO_NETWORK: ${MEZO_NETWORK:-testnet}
+        ports:
+            - "${PORT:-3000}:3000"
+        restart: unless-stopped
