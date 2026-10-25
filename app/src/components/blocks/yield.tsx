@@ -19,9 +19,9 @@ export function yieldTip(state: LoanState | undefined) {
         return "The pool isn’t borrowing right now, so its BTC sits idle and earns nothing. The yield starts once borrowing is turned on.";
     }
     if (state === "paused") {
-        return "Borrowing is paused, so the pool won’t borrow more, but what it already saved keeps earning. If today’s rates hold, a year in the pool adds this much to your BTC.";
+        return "Borrowing is paused, so the pool won’t borrow more, but what it already saved keeps earning. At Mezo mainnet’s rates from the last 12 weeks, a year in the pool adds this much to your BTC.";
     }
-    return "If today’s rates hold, a year in the pool adds this much to your BTC. You can take it out whenever you like.";
+    return "Worked out from Mezo mainnet’s savings and loan rates over the last 12 weeks, since testnet’s are made up. If they hold, a year in the pool adds this much to your BTC.";
 }
 
 export function Yield() {

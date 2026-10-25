@@ -7,18 +7,30 @@ import {
     BaseError,
     ChainMismatchError,
     ContractFunctionRevertedError,
+    createPublicClient,
     encodeFunctionData,
+    http,
     InsufficientFundsError,
     SwitchChainError,
     UserRejectedRequestError,
     zeroAddress,
     type Address,
+    type Block,
     type Hash,
 } from "viem";
 import { mezoTestnet } from "viem/chains";
 import { useAccount, useBalance, usePublicClient, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
-import { priceFeed, rateManager, savings, troveManager, vault, VAULT_FROM_BLOCK } from "./chain";
-import { sampleBlocks, savingsApr, sharesToAssets, vaultYield, type Trove } from "./math";
+import {
+    MAINNET_RPC,
+    mainnetRates,
+    mainnetSavings,
+    priceFeed,
+    rateManager,
+    troveManager,
+    vault,
+    VAULT_FROM_BLOCK,
+} from "./chain";
+import { lastPayout, sampleBlocks, savingsApr, sharesToAssets, vaultYield, type Trove } from "./math";
 
 const WEEK = 7 * 24 * 60 * 60;
 // Mezo testnet averages about 4.6 seconds a block, only used to pick a block a week back
@@ -110,32 +122,47 @@ export function useWalletBtc() {
     return useBalance({ address, query: { enabled: !!address, refetchInterval: 12_000 } }).data?.value;
 }
 
-/* Savings rate */
+/* Rates */
 
-// sMUSD's yield index over the last week, annualized
-export function useSavingsApr() {
-    const client = usePublicClient();
+const mainnet = createPublicClient({ transport: http(MAINNET_RPC) });
+const WEEKS = 12;
+
+// Mezo mainnet's savings rate over the last twelve whole payout weeks, and its loan rate
+export function useMainnetRates() {
     return useQuery({
-        queryKey: ["savings-apr"],
-        enabled: !!client,
-        staleTime: 10 * 60_000,
+        queryKey: ["mainnet-rates"],
+        staleTime: 60 * 60_000,
         queryFn: async () => {
-            const latest = await client!.getBlock();
-            const back = BigInt(Math.round(WEEK / BLOCK_SECONDS));
-            const past = await client!.getBlock({ blockNumber: latest.number - back });
-            const read = (blockNumber: bigint) =>
-                client!.readContract({ ...savings, functionName: "yieldIndex", blockNumber });
-            const [now, then] = await Promise.all([read(latest.number), read(past.number)]);
-            return savingsApr(now, then, Number(latest.timestamp - past.timestamp));
+            const head = await mainnet.getBlock();
+            const end = lastPayout(Number(head.timestamp));
+            const [to, from] = await Promise.all([blockAt(head, end), blockAt(head, end - WEEKS * WEEK)]);
+            const index = (block: Block) =>
+                mainnet.readContract({ ...mainnetSavings, functionName: "yieldIndex", blockNumber: block.number! });
+            const [now, then, rate] = await Promise.all([
+                index(to),
+                index(from),
+                mainnet.readContract({ ...mainnetRates, functionName: "interestRate" }),
+            ]);
+            return { savingsApr: savingsApr(now, then, Number(to.timestamp - from.timestamp)), loanRateBps: rate };
         },
     });
 }
 
-// The vault's yearly BTC yield, savings income minus loan interest
+// A block within minutes of a time, guessed from the block rate between the head and a first try
+async function blockAt(head: Block, seconds: number) {
+    const behind = (rate: number) => head.number! - BigInt(Math.round((Number(head.timestamp) - seconds) / rate));
+    const guess = await mainnet.getBlock({ blockNumber: behind(3.8) });
+    const rate = Number(head.timestamp - guess.timestamp) / Number(head.number! - guess.number);
+    return mainnet.getBlock({ blockNumber: behind(rate) });
+}
+
+// The vault's yearly BTC yield at mainnet rates, savings income minus loan interest
 export function useYield() {
     const { data } = useVault();
-    const apr = useSavingsApr().data;
-    return data && apr !== undefined ? vaultYield({ ...data, savingsApr: apr }) : undefined;
+    const rates = useMainnetRates().data;
+    if (!data || !rates) return undefined;
+    const { savingsApr, loanRateBps } = rates;
+    return vaultYield({ ...data, savingsApr, troveRateBps: loanRateBps, currentRateBps: loanRateBps });
 }
 
 /* BTC price */

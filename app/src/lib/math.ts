@@ -35,6 +35,13 @@ export function priceAtRatio(price: number, ratio: number, target: number) {
 }
 
 // Yearly MUSD yield of sMUSD per MUSD, from its yield index at two blocks
+// Mezo pays savings on Thursdays around 00:20 UTC, an hour later every payout has landed
+export function lastPayout(seconds: number) {
+    const week = 7 * 24 * 60 * 60;
+    // The Unix epoch fell on a Thursday, so payout hours sit at 01:00 plus whole weeks
+    return 3600 + Math.floor((seconds - 3600) / week) * week;
+}
+
 export function savingsApr(indexNow: bigint, indexThen: bigint, seconds: number) {
     if (seconds <= 0) return 0;
     return (Number(indexNow - indexThen) / 1e18) * (YEAR / seconds);

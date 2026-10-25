@@ -6,6 +6,7 @@ import {
     loanState,
     priceAtRatio,
     formatBtc,
+    lastPayout,
     ratioOf,
     sampleBlocks,
     savingsApr,
@@ -99,4 +100,12 @@ test("loan state", () => {
     assert.equal(loanState(open, false), "paused");
     assert.equal(loanState(none, true), "waiting");
     assert.equal(loanState(none, false), "off");
+});
+
+test("last payout", () => {
+    // Sat 2026-10-24 12:00 UTC goes back to Thu 2026-10-22 01:00 UTC
+    assert.equal(lastPayout(Date.UTC(2026, 9, 24, 12) / 1000), Date.UTC(2026, 9, 22, 1) / 1000);
+    // Thursday before 01:00 still belongs to the previous week
+    assert.equal(lastPayout(Date.UTC(2026, 9, 29, 0, 30) / 1000), Date.UTC(2026, 9, 22, 1) / 1000);
+    assert.equal(lastPayout(Date.UTC(2026, 9, 29, 1) / 1000), Date.UTC(2026, 9, 29, 1) / 1000);
 });

@@ -50,7 +50,15 @@ export const rateManager = {
     abi: parseAbi(["function interestRate() view returns (uint16)"]),
 } as const;
 
-export const savings = {
-    address: "0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16",
+// Mezo mainnet, read only for the rates the yield is quoted at since testnet's savings pay a made up rate
+export const MAINNET_RPC = "https://rpc-http.mezo.boar.network";
+
+export const mainnetSavings = {
+    address: "0xb4D498029af77680cD1eF828b967f010d06C51CC",
     abi: parseAbi(["function yieldIndex() view returns (uint256)"]),
+} as const;
+
+export const mainnetRates = {
+    address: "0x4a453700d157717Fe02fB62E7700ED7845048285",
+    abi: rateManager.abi,
 } as const;

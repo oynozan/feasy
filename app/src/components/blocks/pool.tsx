@@ -17,7 +17,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EXPLORER } from "@/lib/chain";
 import { smoothPath } from "@/lib/chart-path";
-import { useSavingsApr, useVault, useYield } from "@/lib/hooks";
+import { useMainnetRates, useVault, useYield } from "@/lib/hooks";
 import { btcParts, formatBtc, LIQUIDATION_CR, loanState, priceAtRatio, ratioOf, WAD } from "@/lib/math";
 import { flow, pop, rise, springy } from "@/lib/motion";
 import { usePoolHistory, usePoolState, type PoolEvent, type PoolSample } from "@/lib/pool";
@@ -511,11 +511,11 @@ function Meter({
 function Savings() {
     const { data } = useVault();
     const { gasComp } = usePoolState();
-    const apr = useSavingsApr().data;
+    const rates = useMainnetRates().data;
     // The trove's debt counts a gas deposit Mezo hands back on close, so the pool owes that much less
     const tip =
-        data?.trove.active && apr !== undefined && gasComp !== undefined
-            ? `The pool owes ${whole.format(Number(data.trove.debt - gasComp) / 1e18)} MUSD on its loan and keeps the borrowed dollars in Mezo’s savings vault, earning ${percent(apr, 2)} a year while the loan costs ${percent(data.troveRateBps / 1e4, 2)}.`
+        data?.trove.active && rates && gasComp !== undefined
+            ? `The pool owes ${whole.format(Number(data.trove.debt - gasComp) / 1e18)} MUSD on its loan and keeps the borrowed dollars in Mezo’s savings vault. On mainnet those savings paid ${percent(rates.savingsApr, 2)} a year over the last 12 weeks, while a loan costs ${percent(rates.loanRateBps / 1e4, 2)}.`
             : "The dollars the pool borrows wait in Mezo’s savings vault, earning more than the loan costs.";
 
     return (
