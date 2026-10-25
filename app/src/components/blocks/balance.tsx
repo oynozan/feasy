@@ -10,7 +10,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useAccount, useConnect, useConnections, useConnectors, usePublicClient, useSwitchAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LEGACY_VAULT } from "@/lib/chain";
+import { LEGACY_VAULTS } from "@/lib/chain";
 import {
     GAS_RESERVE,
     isBitcoinWallet,
@@ -88,7 +88,8 @@ function SignedIn({ open }: { open: boolean }) {
     const queue = useQueue();
     const queued = queue ? queue.waiting + queue.claimable : 0n;
     // BTC still in the old vault or waiting in the queue is yours too, so the total counts it
-    const elsewhere = queued + (useLegacy()?.assets ?? 0n);
+    const legacy = useLegacy();
+    const elsewhere = queued + legacy.reduce((sum, v) => sum + v.assets, 0n);
     const history = useHistory().data;
     const [pointed, setPointed] = useState<number | null>(null);
     const bar = pointed !== null ? history?.bars[pointed] : undefined;
@@ -126,7 +127,9 @@ function SignedIn({ open }: { open: boolean }) {
                     <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n) + (bar ? 0n : elsewhere)} />
                 </Reveal>
             </FigureRow>
-            <MoveRow />
+            {LEGACY_VAULTS.map((old) => (
+                <MoveRow key={old.address} vault={old} position={legacy.find((v) => v.address === old.address)} />
+            ))}
             {/* The split under the total opens while the block is hovered or focused */}
             <AnimatePresence initial={false}>
                 {open && (
@@ -148,7 +151,11 @@ function SignedIn({ open }: { open: boolean }) {
                                 <Part
                                     label="Exit queue"
                                     wei={queued}
-                                    action={queue.ready.length > 0 && <Claim queue={queue.address} ids={queue.ready} />}
+                                    action={
+                                        queue.claims[0] && (
+                                            <Claim queue={queue.claims[0].queue} ids={queue.claims[0].ids} />
+                                        )
+                                    }
                                 />
                             )}
                         </dl>
@@ -196,11 +203,16 @@ function Part({ label, wei, action }: { label: string; wei: bigint | undefined; 
 
 type Move = "idle" | "redeeming" | "depositing" | "redeemFailed" | "depositFailed";
 
-// A position still in v5, pulled out and deposited into v6 with two signatures
-function MoveRow() {
+// A position in an older vault, pulled out and deposited into this one with two signatures
+function MoveRow({
+    vault: old,
+    position: legacy,
+}: {
+    vault: (typeof LEGACY_VAULTS)[number];
+    position: { shares: bigint; assets: bigint } | undefined;
+}) {
     const { address } = useAccount();
     const client = usePublicClient();
-    const legacy = useLegacy();
     const tx = useVaultTx();
     const [stage, setStage] = useState<Move>("idle");
     const [amount, setAmount] = useState(0n);
@@ -223,7 +235,7 @@ function MoveRow() {
         const out = await tx.send({
             functionName: "redeem",
             args: [legacy.shares, address, address],
-            at: LEGACY_VAULT,
+            at: old.address,
         });
         if (!out) return setStage("redeemFailed");
         await deposit(legacy.assets);
@@ -239,7 +251,10 @@ function MoveRow() {
 
     return (
         <div data-row="chip" className="mt-3 flex h-8 items-center gap-1.5 text-[15px] text-muted-foreground">
-            <span className="tabular-nums">{formatBtc(legacy?.assets ?? amount)} BTC in the old vault</span>
+            <span className="tabular-nums">
+                {formatBtc(legacy?.assets ?? amount)} BTC in{" "}
+                {LEGACY_VAULTS.length > 1 ? `old vault ${old.name}` : "the old vault"}
+            </span>
             <InfoTip>
                 Feasy moved to a new vault. Move takes your BTC out of the old one and puts it into the new one, which
                 takes two signatures.

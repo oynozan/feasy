@@ -31,6 +31,14 @@ import type { Source as Token } from "@/lib/swap";
 import { cn } from "@/lib/utils";
 import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Press } from "../block";
 
+// Locks end at 00:00 UTC on a Thursday, which a local zone west of UTC would call Wednesday
+const thursday = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+});
+
 type Source = "btc" | "tbtc";
 type Connect = { label: string; run: () => void } | undefined;
 
@@ -135,19 +143,19 @@ export function Withdraw() {
     const sleeve = useSleeve();
     const [kind, setKind] = useState<"withdraw" | "request">("withdraw");
     const weeks = sleeve ? `${sleeve.lockWeeks} week${sleeve.lockWeeks === 1 ? "" : "s"}` : "";
+    // No new lock starts while a request waits, so the longest running lock bounds the wait
+    const latest = sleeve?.rungs.at(-1)?.end;
 
     // Only v6 unlocks earnings over a week and queues large exits, v5 gets no question mark here
     const tip =
         [
             data?.unlocking !== undefined &&
                 "New earnings unlock into the share price over 7 days, so leaving early hands your still unlocking part to the people who stay.",
-            queue &&
+            data?.queue &&
                 (sleeve
-                    ? `Up to a quarter of the pool sits in veBTC locks that end on Thursdays, so more than you can take out right now waits in a line paid as locks end, within ${weeks} and usually one. A request in line can’t be cancelled.`
+                    ? `Up to a quarter of the pool sits in veBTC locks that end on Thursdays, so more than you can take out right now waits in a line paid as locks end, ${latest ? `by ${thursday.format(latest * 1000)} at the latest` : `within ${weeks}`}. A request in line can’t be cancelled.`
                     : "More than you can take out right now goes into a line that pays in order. A request in line can’t be cancelled."),
-            queue &&
-                queue.backlog > 0n &&
-                "Requests already in line get paid first, so less can be taken out right away.",
+            !!queue?.backlog && "Requests already in line get paid first, so less can be taken out right away.",
         ]
             .filter(Boolean)
             .join(" ") || undefined;

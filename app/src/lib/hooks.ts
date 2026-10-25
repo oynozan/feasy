@@ -29,7 +29,7 @@ import {
     useWriteContract,
 } from "wagmi";
 import {
-    LEGACY_VAULT,
+    LEGACY_VAULTS,
     MAINNET_RPC,
     mainnetRates,
     mainnetSavings,
@@ -181,74 +181,107 @@ export function useHoldings() {
     return { wallet, pool: sharesToAssets(shares, data.totalAssets, data.supply) };
 }
 
-// The connected wallets' exit requests in v6's queue, what still waits and what can be claimed
+// The connected wallets' exit requests in this vault's queue and any older vault's, a request stays where it was made
 export function useQueue() {
     const addresses = useAddresses();
-    const { data } = useVault();
-    const queue = data?.queue;
+    const vaults = [vault.address, ...LEGACY_VAULTS.map((v) => v.address)];
+    const found = useReadContracts({
+        contracts: vaults.map((address) => ({ address, abi: vault.abi, functionName: "queue" })) as never,
+        query: { staleTime: Infinity },
+    }).data as { result?: Address }[] | undefined;
+    const pairs = vaults
+        .map((at, i) => ({ vault: at, queue: found?.[i]?.result }))
+        .filter((pair): pair is { vault: Address; queue: Address } => !!pair.queue);
     const lists = useReadContracts({
         allowFailure: false,
-        contracts: addresses.map((owner) => ({
-            address: queue!,
-            abi: redeemQueue,
-            functionName: "requestsOf",
-            args: [owner],
-        })) as never,
-        query: { enabled: !!queue && addresses.length > 0, refetchInterval: 12_000 },
+        contracts: pairs.flatMap((pair) =>
+            addresses.map((owner) => ({
+                address: pair.queue,
+                abi: redeemQueue,
+                functionName: "requestsOf",
+                args: [owner],
+            })),
+        ) as never,
+        query: { enabled: pairs.length > 0 && addresses.length > 0, refetchInterval: 12_000 },
     }).data as (readonly bigint[])[] | undefined;
-    const ids = lists?.flat() ?? [];
+    const ids = pairs.map((_, i) => lists?.slice(i * addresses.length, (i + 1) * addresses.length).flat() ?? []);
     // Every read here is storage only, so any number of requests stays clear of the precompile cap
     const reads = useReadContracts({
         allowFailure: false,
-        contracts: [
-            { address: queue!, abi: redeemQueue, functionName: "queueState" },
-            ...ids.flatMap((id) =>
+        contracts: pairs.flatMap((pair, i) => [
+            { address: pair.queue, abi: redeemQueue, functionName: "queueState" },
+            ...ids[i].flatMap((id) =>
                 (["pendingRedeem", "claimableRedeem", "sharesAhead"] as const).map((functionName) => ({
-                    address: queue!,
+                    address: pair.queue,
                     abi: redeemQueue,
                     functionName,
                     args: [id],
                 })),
             ),
-        ] as never,
-        query: { enabled: !!queue && !!lists, refetchInterval: 12_000 },
+        ]) as never,
+        query: { enabled: !!lists, refetchInterval: 12_000 },
     }).data as unknown[] | undefined;
-    if (!queue || !data || !reads) return undefined;
-    const [state, ...each] = reads as [readonly bigint[], ...bigint[]];
-    let waitingShares = 0n;
-    let claimable = 0n;
-    let ahead: bigint | undefined;
-    const ready: bigint[] = [];
-    ids.forEach((id, i) => {
-        const [pending, claim, before] = each.slice(i * 3, i * 3 + 3);
-        waitingShares += pending;
-        claimable += claim;
-        if (claim > 0n) ready.push(id);
-        if (pending > 0n && (ahead === undefined || before < ahead)) ahead = before;
+
+    let offset = 0;
+    const each = pairs.map((pair, i) => {
+        if (!reads) return undefined;
+        const state = reads[offset] as readonly bigint[];
+        const values = reads.slice(offset + 1, offset + 1 + ids[i].length * 3) as bigint[];
+        offset += 1 + ids[i].length * 3;
+        let pending = 0n;
+        let claimable = 0n;
+        let ahead: bigint | undefined;
+        const ready: bigint[] = [];
+        ids[i].forEach((id, k) => {
+            const [wait, claim, before] = values.slice(k * 3, k * 3 + 3);
+            pending += wait;
+            claimable += claim;
+            if (claim > 0n) ready.push(id);
+            if (wait > 0n && (ahead === undefined || before < ahead)) ahead = before;
+        });
+        return { ...pair, pending, claimable, ready, ahead, backlog: state[0] - state[1] };
     });
+    // Waiting shares are worth what their own vault pays for them, one price read per vault
+    const worth = useReadContracts({
+        allowFailure: false,
+        contracts: each.map((q) => ({
+            address: q?.vault,
+            abi: vault.abi,
+            functionName: "convertToAssets",
+            args: [q?.pending ?? 0n],
+        })) as never,
+        query: { enabled: !!reads && each.length > 0, refetchInterval: 12_000 },
+    }).data as bigint[] | undefined;
+    if (!reads || !worth || pairs.length === 0) return undefined;
+    const queues = each.filter((q): q is NonNullable<typeof q> => !!q);
+    const current = queues.find((q) => q.vault === vault.address);
     return {
-        address: queue,
-        waiting: sharesToAssets(waitingShares, data.totalAssets, data.supply),
-        claimable,
-        ready,
-        ahead,
-        backlog: state[0] - state[1],
+        waiting: worth.reduce((sum, value) => sum + value, 0n),
+        claimable: queues.reduce((sum, q) => sum + q.claimable, 0n),
+        // One claim call per queue, the first one with BTC ready goes first
+        claims: queues.filter((q) => q.ready.length > 0).map((q) => ({ queue: q.queue, ids: q.ready })),
+        ahead: current?.ahead,
+        backlog: current?.backlog ?? 0n,
     };
 }
 
-// What the active wallet still has in v5, the old vault only holds idle BTC so its max pays in full
+// What the active wallet can still move out of each older vault, the free shares only
 export function useLegacy() {
     const { address } = useAccount();
     const { data } = useReadContracts({
-        contracts: [
-            { address: LEGACY_VAULT, abi: vault.abi, functionName: "maxRedeem", args: [address!] },
-            { address: LEGACY_VAULT, abi: vault.abi, functionName: "maxWithdraw", args: [address!] },
-        ],
+        contracts: LEGACY_VAULTS.flatMap((v) => [
+            { address: v.address, abi: vault.abi, functionName: "maxRedeem", args: [address!] },
+            { address: v.address, abi: vault.abi, functionName: "maxWithdraw", args: [address!] },
+        ]) as never,
         query: { enabled: !!address, refetchInterval: 30_000 },
     });
-    const shares = data?.[0].result;
-    const assets = data?.[1].result;
-    return address && shares && assets ? { shares, assets } : undefined;
+    const reads = data as { result?: bigint }[] | undefined;
+    if (!address || !reads) return [];
+    return LEGACY_VAULTS.map((v, i) => ({
+        ...v,
+        shares: reads[i * 2]?.result,
+        assets: reads[i * 2 + 1]?.result,
+    })).filter((v): v is typeof v & { shares: bigint; assets: bigint } => !!v.shares && !!v.assets);
 }
 
 // v7's veBTC locks, up to a quarter of the pool, each ending on a Thursday at 00:00 UTC
