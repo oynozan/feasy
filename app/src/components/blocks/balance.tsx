@@ -3,15 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import NumberFlow from "@number-flow/react";
-import { ArrowDownRightIcon, ArrowUpRightIcon } from "@heroicons/react/16/solid";
+import { ArrowDownRightIcon, ArrowsRightLeftIcon, ArrowUpRightIcon, PlusIcon } from "@heroicons/react/16/solid";
 import { useBitcoinAccount } from "@mezo-org/orangekit";
 import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
+import { useAccount, useConnect, useConnections, useConnectors, useSwitchAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useHistory, useSignedOut, useVault, useWalletBtc, type Bar } from "@/lib/hooks";
+import { isBitcoinWallet, useHistory, useHoldings, useSignedOut, type Bar } from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
-import { flow, grow, rise } from "@/lib/motion";
+import { flow, grow, pop, rise, springy } from "@/lib/motion";
 import { Block, BlockHeader, Chip, Eyebrow, FigureRow, Press, Reveal } from "../block";
 import { Wordmark } from "../frame";
 import { Magnet } from "../magnet";
@@ -72,13 +73,12 @@ function SignedOut() {
 }
 
 function SignedIn({ open }: { open: boolean }) {
-    const { data } = useVault();
-    const wallet = useWalletBtc();
+    const holdings = useHoldings();
     const history = useHistory().data;
     const [pointed, setPointed] = useState<number | null>(null);
     const bar = pointed !== null ? history?.bars[pointed] : undefined;
-    const pool = bar?.pool ?? data?.position;
-    const inWallet = bar?.wallet ?? wallet;
+    const pool = bar?.pool ?? holdings?.pool;
+    const inWallet = bar?.wallet ?? holdings?.wallet;
     const ready = pool !== undefined && inWallet !== undefined;
     // Both sides come from the same history read, so a fresh deposit never shows up as a gain
     const last = history?.bars.at(-1);
@@ -173,30 +173,125 @@ function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
 function WalletPill() {
     const { btcAddress } = useBitcoinAccount();
     return (
-        <ConnectButton.Custom>
-            {({ account, chain, mounted, openAccountModal, openChainModal }) =>
-                !mounted || !account ? (
-                    <Skeleton className="h-9 w-32" />
-                ) : (
-                    <Magnet padding={24} magnetStrength={4}>
-                        <Press>
-                            {chain?.unsupported ? (
-                                <Button variant="secondary" onClick={openChainModal}>
-                                    Switch to Mezo
-                                </Button>
-                            ) : (
-                                <Button variant="secondary" onClick={openAccountModal} className="gap-2 px-4">
-                                    <span aria-hidden="true" className="size-2 rounded-full bg-gold" />
-                                    {btcAddress
-                                        ? `${btcAddress.slice(0, 6)}…${btcAddress.slice(-4)}`
-                                        : account.displayName}
-                                </Button>
-                            )}
-                        </Press>
-                    </Magnet>
-                )
-            }
-        </ConnectButton.Custom>
+        <div className="flex items-center gap-1.5">
+            <ConnectButton.Custom>
+                {({ account, chain, mounted, openAccountModal, openChainModal }) =>
+                    !mounted || !account ? (
+                        <Skeleton className="h-9 w-32" />
+                    ) : (
+                        <Magnet padding={24} magnetStrength={4}>
+                            <Press>
+                                {chain?.unsupported ? (
+                                    <Button variant="secondary" onClick={openChainModal}>
+                                        Switch to Mezo
+                                    </Button>
+                                ) : (
+                                    <Button variant="secondary" onClick={openAccountModal} className="gap-2 px-4">
+                                        <span aria-hidden="true" className="size-2 rounded-full bg-gold" />
+                                        {btcAddress
+                                            ? `${btcAddress.slice(0, 6)}…${btcAddress.slice(-4)}`
+                                            : account.displayName}
+                                    </Button>
+                                )}
+                            </Press>
+                        </Magnet>
+                    )
+                }
+            </ConnectButton.Custom>
+            <WalletSwitch />
+        </div>
+    );
+}
+
+// Adds a wallet from the other family, or swaps which connected wallet signs
+function WalletSwitch() {
+    const { connector } = useAccount();
+    const connections = useConnections();
+    const connectors = useConnectors();
+    const { connect } = useConnect();
+    const { switchAccount } = useSwitchAccount();
+    const [open, setOpen] = useState(false);
+    const other = connections.find((c) => c.connector.uid !== connector?.uid);
+    const bitcoin = isBitcoinWallet(connector);
+    const options = [
+        ...new Map(
+            connectors
+                .filter((c) => isBitcoinWallet(c) !== bitcoin && !connections.some((k) => k.connector.uid === c.uid))
+                .map((c) => [c.name, c]),
+        ).values(),
+    ];
+    const round =
+        "grid size-9 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:text-foreground";
+
+    if (other) {
+        const to = other.accounts[0];
+        return (
+            <Press>
+                <button
+                    type="button"
+                    aria-label={`Switch to ${to.slice(0, 6)}…${to.slice(-4)}`}
+                    title={`Switch to ${to.slice(0, 6)}…${to.slice(-4)}`}
+                    onClick={() => switchAccount({ connector: other.connector })}
+                    className={round}
+                >
+                    <ArrowsRightLeftIcon className="size-4" />
+                </button>
+            </Press>
+        );
+    }
+    if (options.length === 0) return null;
+    return (
+        <div className="relative">
+            <Press>
+                <button
+                    type="button"
+                    aria-label="Add a wallet"
+                    aria-expanded={open}
+                    onClick={() => setOpen((was) => !was)}
+                    className={round}
+                >
+                    <motion.span animate={{ rotate: open ? 45 : 0 }} transition={springy}>
+                        <PlusIcon className="size-4" />
+                    </motion.span>
+                </button>
+            </Press>
+            <AnimatePresence>
+                {open && (
+                    <>
+                        <button
+                            type="button"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            className="fixed inset-0 z-40 cursor-default"
+                            onClick={() => setOpen(false)}
+                        />
+                        <motion.ul
+                            key="wallets"
+                            className="absolute top-11 right-0 z-50 w-52 origin-top-right rounded-tile bg-card p-1.5 shadow-[0_16px_40px_-16px_rgb(24_23_23/0.35)] ring-1 ring-foreground/5"
+                            initial={{ opacity: 0, scale: 0.9, y: -6 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.12 } }}
+                            transition={pop}
+                        >
+                            {options.map((option) => (
+                                <li key={option.uid}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setOpen(false);
+                                            connect({ connector: option });
+                                        }}
+                                        className="flex h-10 w-full items-center rounded-[14px] px-3 text-left text-[15px] font-medium transition-colors hover:bg-secondary"
+                                    >
+                                        {option.name}
+                                    </button>
+                                </li>
+                            ))}
+                        </motion.ul>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }
 

@@ -26,7 +26,7 @@ import {
     type WalletClient,
 } from "viem";
 import { mezoTestnet, sepolia } from "viem/chains";
-import { useAccount } from "wagmi";
+import { useAccount, useConnections } from "wagmi";
 import { vault } from "./chain";
 
 export const BRIDGE_MINUTES = 16;
@@ -110,17 +110,23 @@ export function useTbtc(): {
 // Signs with the connected EVM wallet when there is one, window.ethereum may belong to another
 function useEthereum() {
     const { connector, address } = useAccount();
-    const evm = !!connector && typeof (connector as { getBitcoinProvider?: unknown }).getBitcoinProvider !== "function";
+    const connections = useConnections();
+    // The active wallet when it is an EVM one, otherwise an EVM wallet connected beside a Bitcoin one
+    const evm = [
+        ...(connector && address ? [{ connector, account: address }] : []),
+        ...connections.map((c) => ({ connector: c.connector, account: c.accounts[0] })),
+    ].find((c) => typeof (c.connector as { getBitcoinProvider?: unknown }).getBitcoinProvider !== "function");
     const provider =
         useQuery({
-            queryKey: ["ethereum-provider", evm ? connector.uid : "injected"],
+            queryKey: ["ethereum-provider", evm ? evm.connector.uid : "injected"],
             staleTime: Infinity,
             structuralSharing: false,
-            queryFn: async () => (evm ? ((await connector.getProvider()) as EIP1193Provider) : (injected() ?? null)),
+            queryFn: async () =>
+                evm ? ((await evm.connector.getProvider()) as EIP1193Provider) : (injected() ?? null),
         }).data ?? undefined;
     const [asked, setAsked] = useState<Address>();
     const listened = useInjectedAccount(evm ? undefined : provider);
-    const account = evm ? address : (asked ?? listened);
+    const account = evm ? evm.account : (asked ?? listened);
     const connect = () => {
         void provider?.request({ method: "eth_requestAccounts" }).then(
             (accounts) => accounts[0] && setAsked(getAddress(accounts[0])),

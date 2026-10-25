@@ -19,11 +19,20 @@ import {
     type Hash,
 } from "viem";
 import { mezoTestnet } from "viem/chains";
-import { useAccount, useBalance, usePublicClient, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
+import {
+    useAccount,
+    useBalance,
+    useConnections,
+    usePublicClient,
+    useReadContracts,
+    useSwitchChain,
+    useWriteContract,
+} from "wagmi";
 import {
     MAINNET_RPC,
     mainnetRates,
     mainnetSavings,
+    multicall,
     priceFeed,
     rateManager,
     troveManager,
@@ -108,6 +117,7 @@ export function useVault() {
             troveRateBps: troveRate.result ?? 0,
             currentRateBps: rate.result ?? 0,
             shares: userShares,
+            supply,
             position: sharesToAssets(userShares, assets, supply),
             maxWithdraw: maxWithdraw.result ?? 0n,
             maxRedeem: maxRedeem.result ?? 0n,
@@ -115,6 +125,36 @@ export function useVault() {
             borrowing: (borrowing.result as boolean | undefined) ?? true,
         },
     };
+}
+
+// Every connected wallet's Mezo address, the active one first
+export function useAddresses() {
+    const { address } = useAccount();
+    const connections = useConnections();
+    const all = [address, ...connections.map((c) => c.accounts[0])].filter((a): a is Address => !!a);
+    return [...new Map(all.map((a) => [a.toLowerCase(), a])).values()];
+}
+
+// The BTC on Mezo and the pool slice of every connected wallet, added up
+export function useHoldings() {
+    const addresses = useAddresses();
+    const { data } = useVault();
+    const reads = useReadContracts({
+        allowFailure: false,
+        contracts: addresses.flatMap((a) => [
+            { ...multicall, functionName: "getEthBalance", args: [a] },
+            { ...vault, functionName: "balanceOf", args: [a] },
+        ]) as never,
+        query: { enabled: addresses.length > 0, refetchInterval: 12_000 },
+    }).data as bigint[] | undefined;
+    if (!reads || !data) return undefined;
+    let wallet = 0n;
+    let shares = 0n;
+    for (let i = 0; i < reads.length; i += 2) {
+        wallet += reads[i];
+        shares += reads[i + 1];
+    }
+    return { wallet, pool: sharesToAssets(shares, data.totalAssets, data.supply) };
 }
 
 export function useWalletBtc() {
@@ -196,13 +236,14 @@ export function useBtcHistory() {
 export type Activity = { kind: "deposit" | "withdraw"; assets: bigint; time: number; hash: Hash };
 export type Bar = { time: number; pool: bigint; wallet: bigint };
 
-// Every vault event since deployment, then the holder's balance sampled along the way
+// Every vault event since deployment, then the connected wallets' balances sampled along the way
 export function useHistory() {
     const client = usePublicClient();
-    const { address } = useAccount();
+    const addresses = useAddresses();
+    const mine = new Set(addresses.map((a) => a.toLowerCase()));
     return useQuery({
-        queryKey: ["history", address],
-        enabled: !!client && !!address,
+        queryKey: ["history", ...[...mine].sort()],
+        enabled: !!client && addresses.length > 0,
         staleTime: 60_000,
         queryFn: async () => {
             const latest = await client!.getBlock();
@@ -227,16 +268,15 @@ export function useHistory() {
             ).flat();
             logs.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
 
-            const me = address!.toLowerCase();
-            const mine = logs.filter((log) =>
+            const ours = logs.filter((log) =>
                 log.eventName === "Transfer"
-                    ? log.args.from.toLowerCase() === me || log.args.to.toLowerCase() === me
-                    : log.args.owner.toLowerCase() === me,
+                    ? mine.has(log.args.from.toLowerCase()) || mine.has(log.args.to.toLowerCase())
+                    : mine.has(log.args.owner.toLowerCase()),
             );
             // Mezo's logs carry blockTimestamp as 0x0, so the times come from the blocks
             const times = new Map<bigint, number>();
             await Promise.all(
-                [...new Set(mine.map((log) => log.blockNumber))].map(async (blockNumber) => {
+                [...new Set(ours.map((log) => log.blockNumber))].map(async (blockNumber) => {
                     times.set(blockNumber, Number((await client!.getBlock({ blockNumber })).timestamp));
                 }),
             );
@@ -244,12 +284,13 @@ export function useHistory() {
             const activity: Activity[] = [];
             const moves: { block: bigint; delta: bigint }[] = [];
             let deposited = 0n;
-            for (const log of mine) {
+            for (const log of ours) {
                 const time = times.get(log.blockNumber)!;
                 if (log.eventName === "Transfer") {
                     const { from, to, value } = log.args;
-                    if (to.toLowerCase() === me) moves.push({ block: log.blockNumber, delta: value });
-                    if (from.toLowerCase() === me) moves.push({ block: log.blockNumber, delta: -value });
+                    // A move between two of the wallets adds and takes away the same shares
+                    if (mine.has(to.toLowerCase())) moves.push({ block: log.blockNumber, delta: value });
+                    if (mine.has(from.toLowerCase())) moves.push({ block: log.blockNumber, delta: -value });
                 } else {
                     const kind = log.eventName === "Deposit" ? "deposit" : "withdraw";
                     deposited += kind === "deposit" ? log.args.assets : -log.args.assets;
@@ -272,7 +313,9 @@ export function useHistory() {
                     // ponytail: bar times are spread linearly from the first bar to now, blocks run near constant
                     const time = first + (span * Number(block - from)) / Number(latest.number - from);
                     const [wallet, pool] = await Promise.all([
-                        client!.getBalance({ address: address!, blockNumber: block }),
+                        Promise.all(addresses.map((a) => client!.getBalance({ address: a, blockNumber: block }))).then(
+                            (each) => each.reduce((sum, value) => sum + value, 0n),
+                        ),
                         shares === 0n
                             ? 0n
                             : client!.readContract({
@@ -376,7 +419,7 @@ function useTxState() {
     return { state, send, reset: () => setState({ status: "idle" }) };
 }
 
-function isBitcoinWallet(connector: unknown) {
+export function isBitcoinWallet(connector: unknown) {
     return typeof (connector as { getBitcoinProvider?: unknown } | undefined)?.getBitcoinProvider === "function";
 }
 

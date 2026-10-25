@@ -1,4 +1,5 @@
 import { parseAbi } from "viem";
+import { mezoTestnet } from "viem/chains";
 
 export const EXPLORER = "https://explorer.test.mezo.org";
 
@@ -61,4 +62,9 @@ export const mainnetSavings = {
 export const mainnetRates = {
     address: "0x4a453700d157717Fe02fB62E7700ED7845048285",
     abi: rateManager.abi,
+} as const;
+
+export const multicall = {
+    address: mezoTestnet.contracts.multicall3.address,
+    abi: parseAbi(["function getEthBalance(address addr) view returns (uint256 balance)"]),
 } as const;
