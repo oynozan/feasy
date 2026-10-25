@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVault, useYield } from "@/lib/hooks";
 import { btcParts, loanState, type LoanState } from "@/lib/math";
-import { flow, springy } from "@/lib/motion";
+import { fadeIn, fadeOut, flow, glide, springy } from "@/lib/motion";
 import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
 const figure = "font-heading text-[34px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums";
@@ -80,7 +80,7 @@ export function PoolStats() {
                 animate={{ flexGrow: docs ? 0 : 1 }}
                 whileHover="hover"
                 whileTap={{ scale: 0.97 }}
-                transition={springy}
+                transition={{ default: glide, scale: springy }}
             >
                 <Link
                     href="/pool"
@@ -92,7 +92,7 @@ export function PoolStats() {
                         className="overflow-hidden"
                         initial={false}
                         animate={{ opacity: docs ? 0 : 1, width: docs ? 0 : "auto" }}
-                        transition={springy}
+                        transition={{ width: glide, opacity: docs ? fadeOut : fadeIn }}
                     >
                         Pool stats
                     </motion.span>
@@ -117,7 +117,7 @@ export function PoolStats() {
                 initial={false}
                 animate={{ flexGrow: docs ? 1 : 0 }}
                 whileTap={{ scale: 0.95 }}
-                transition={springy}
+                transition={{ default: glide, scale: springy }}
                 onHoverStart={() => setDocs(true)}
                 onHoverEnd={() => setDocs(false)}
             >
@@ -132,7 +132,7 @@ export function PoolStats() {
                     <motion.span
                         aria-hidden="true"
                         animate={{ opacity: docs ? 1 : 0, x: docs ? 0 : -8 }}
-                        transition={springy}
+                        transition={{ x: glide, opacity: docs ? fadeIn : fadeOut }}
                     >
                         Documentation
                     </motion.span>

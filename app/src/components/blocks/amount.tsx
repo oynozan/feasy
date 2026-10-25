@@ -26,7 +26,7 @@ import {
 import { EXPLORER } from "@/lib/chain";
 import { GAS_RESERVE, useQueue, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
-import { pop, rise, springy } from "@/lib/motion";
+import { glide, pop, rise, springy } from "@/lib/motion";
 import type { Source as Token } from "@/lib/swap";
 import { cn } from "@/lib/utils";
 import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Press } from "../block";
@@ -390,7 +390,7 @@ function AmountForm({
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: "auto", opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                transition={rise}
+                                transition={{ default: rise, height: glide }}
                             >
                                 <Eyebrow className="mt-2">
                                     <span>{source}</span>

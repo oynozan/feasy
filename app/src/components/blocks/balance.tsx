@@ -23,7 +23,7 @@ import {
     type Bar,
 } from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
-import { flow, grow, pop, rise, springy } from "@/lib/motion";
+import { flow, glide, grow, pop, rise, springy } from "@/lib/motion";
 import { Block, BlockHeader, Chip, Eyebrow, FigureRow, InfoTip, Press, Reveal } from "../block";
 import { Wordmark } from "../frame";
 import { Magnet } from "../magnet";
@@ -136,7 +136,7 @@ function SignedIn({ open }: { open: boolean }) {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={rise}
+                        transition={{ default: rise, height: glide }}
                     >
                         <dl
                             data-row="chip"

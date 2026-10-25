@@ -13,3 +13,8 @@ export const rise: Transition = { type: "spring", visualDuration: 0.45, bounce: 
 export const pop: Transition = { type: "spring", visualDuration: 0.3, bounce: 0.35 };
 export const springy: Transition = { type: "spring", visualDuration: 0.35, bounce: 0.45 };
 export const grow: Transition = { type: "spring", visualDuration: 0.6, bounce: 0.25 };
+// No overshoot, for widths and flex shares that turn invalid below zero and would freeze mid bounce
+export const glide: Transition = { type: "spring", visualDuration: 0.35, bounce: 0 };
+// Text leaves at once and comes back once its room has opened
+export const fadeOut: Transition = { duration: 0.1, ease: "easeOut" };
+export const fadeIn: Transition = { duration: 0.2, delay: 0.15, ease: "easeOut" };
