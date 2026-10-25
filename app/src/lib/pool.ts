@@ -4,7 +4,8 @@ import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAbi, zeroAddress, type Address, type Hash } from "viem";
 import { mezoTestnet } from "viem/chains";
 import { usePublicClient, useReadContracts } from "wagmi";
-import { vault, VAULT_FROM_BLOCK } from "./chain";
+import { vault, veSleeve, VAULT_FROM_BLOCK } from "./chain";
+import { useSleeve } from "./hooks";
 import { sampleBlocks, WAD, type Trove } from "./math";
 
 const LOG_RANGE = 10_000n;
@@ -59,12 +60,13 @@ const linksQuery = (client: Client | undefined) =>
 
 /* Where the BTC sits */
 
-export type PoolParts = { total: bigint; loan: bigint; aside: bigint; rest: bigint };
+export type PoolParts = { total: bigint; loan: bigint; aside: bigint; locked: bigint; rest: bigint };
 
 // Whole satoshis, the rest taken from the cut parts so the rows add up to the figure exactly
-function split(total: bigint, coll: bigint, aside: bigint): PoolParts {
+function split(total: bigint, coll: bigint, aside: bigint, locked: bigint): PoolParts {
     const sats = (wei: bigint) => (wei / SAT) * SAT;
-    return { total: sats(total), loan: sats(coll), aside: sats(aside), rest: sats(total) - sats(coll) - sats(aside) };
+    const rest = sats(total) - sats(coll) - sats(aside) - sats(locked);
+    return { total: sats(total), loan: sats(coll), aside: sats(aside), locked: sats(locked), rest };
 }
 
 /* Live pool state */
@@ -73,6 +75,7 @@ function split(total: bigint, coll: bigint, aside: bigint): PoolParts {
 export function usePoolState() {
     const client = usePublicClient();
     const links = useQuery({ ...linksQuery(client), enabled: !!client }).data;
+    const sleeve = useSleeve();
     const { data } = useReadContracts({
         allowFailure: true,
         contracts: [
@@ -98,7 +101,7 @@ export function usePoolState() {
     return {
         parts:
             total !== undefined && trove && idle !== undefined && surplus !== undefined
-                ? split(total, trove.coll, idle + surplus)
+                ? split(total, trove.coll, idle + surplus, sleeve?.principal ?? 0n)
                 : undefined,
         maxCR: data?.[4].result,
         perShare: data?.[5].result,
@@ -185,10 +188,11 @@ export function usePoolHistory() {
                 }),
             ]);
 
+            const sleeve = await client!.readContract({ ...vault, functionName: "sleeve" }).catch(() => zeroAddress);
             // Reads at one block share a multicall, its four oracle calls stay under Mezo's cap of twenty
             const samples = await Promise.all(
                 blocks.map(async (blockNumber): Promise<PoolSample> => {
-                    const [assets, perShare, trove, idle, surplus] = await Promise.all([
+                    const [assets, perShare, trove, idle, surplus, locked] = await Promise.all([
                         client!.readContract({ ...vault, functionName: "totalAssets", blockNumber }),
                         client!.readContract({
                             ...vault,
@@ -210,11 +214,21 @@ export function usePoolHistory() {
                             args: [vault.address],
                             blockNumber,
                         }),
+                        sleeve === zeroAddress
+                            ? 0n
+                            : client!
+                                  .readContract({
+                                      address: sleeve,
+                                      abi: veSleeve,
+                                      functionName: "principal",
+                                      blockNumber,
+                                  })
+                                  .catch(() => 0n),
                     ]);
                     return {
                         time: times.get(blockNumber)!,
                         perShare,
-                        parts: split(assets, trove.coll, idle + surplus),
+                        parts: split(assets, trove.coll, idle + surplus, locked),
                     };
                 }),
             );

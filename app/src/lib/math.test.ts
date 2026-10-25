@@ -4,6 +4,7 @@ import {
     btcParts,
     LIQUIDATION_CR,
     loanState,
+    nettedLock,
     priceAtRatio,
     formatBtc,
     lastPayout,
@@ -108,4 +109,12 @@ test("last payout", () => {
     // Thursday before 01:00 still belongs to the previous week
     assert.equal(lastPayout(Date.UTC(2026, 9, 29, 0, 30) / 1000), Date.UTC(2026, 9, 22, 1) / 1000);
     assert.equal(lastPayout(Date.UTC(2026, 9, 29, 1) / 1000), Date.UTC(2026, 9, 29, 1) / 1000);
+});
+
+test("netted lock", () => {
+    assert.equal(nettedLock(100n, 1_000n, 1_000n), 100n);
+    assert.equal(nettedLock(100n, 1_100n, 1_000n), 100n);
+    // A 50 loss eats half the lock, a 200 loss all of it
+    assert.equal(nettedLock(100n, 950n, 1_000n), 50n);
+    assert.equal(nettedLock(100n, 800n, 1_000n), 0n);
 });

@@ -17,12 +17,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EXPLORER } from "@/lib/chain";
 import { smoothPath } from "@/lib/chart-path";
-import { useMainnetRates, useVault, useYield } from "@/lib/hooks";
+import { useMainnetRates, useSleeve, useVault, useYield } from "@/lib/hooks";
 import { btcParts, formatBtc, LIQUIDATION_CR, loanState, priceAtRatio, ratioOf, WAD } from "@/lib/math";
 import { flow, pop, rise, springy } from "@/lib/motion";
 import { usePoolHistory, usePoolState, type PoolEvent, type PoolSample } from "@/lib/pool";
 import { cn } from "@/lib/utils";
-import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, Reveal } from "../block";
+import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Reveal } from "../block";
 import { Wordmark } from "../frame";
 import { yieldTip } from "./yield";
 
@@ -34,6 +34,13 @@ const INSET = 12;
 
 const when = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const day = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+// Locks end at 00:00 UTC on a Thursday, which a local zone west of UTC would call Wednesday
+const thursday = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+});
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
 const percent = (value: number, digits = 0) =>
@@ -120,6 +127,7 @@ function PoolBalance({
             >
                 <Part label="Backing the loan" wei={parts?.loan} />
                 <Part label="Kept aside" wei={parts?.aside} />
+                {!!parts?.locked && <Part label={<LockedLabel />} wei={parts.locked} />}
                 <Part label="Savings minus loan" wei={parts?.rest} />
             </dl>
             <PoolChart samples={samples} active={active} failed={failed} onPoint={onPoint} />
@@ -148,7 +156,25 @@ function BtcFigure({ wei }: { wei: bigint }) {
     );
 }
 
-function Part({ label, wei }: { label: string; wei: bigint | undefined }) {
+// Up to a quarter of the pool votes in veBTC for the savings vault, each lock ending on a Thursday
+function LockedLabel() {
+    const sleeve = useSleeve();
+    const ends = sleeve?.rungs.map(
+        (rung) => `${formatBtc(rung.amount)} BTC unlocks ${thursday.format(rung.end * 1000)}`,
+    );
+    return (
+        <span className="inline-flex items-center gap-1">
+            Locked in veBTC
+            <InfoTip>
+                {`Up to a quarter of the pool is locked in veBTC, where it votes for Mezo’s savings vault and earns its fees.${
+                    ends?.length ? ` ${ends.join(", ")}.` : ""
+                }${sleeve && !sleeve.open ? " Locks are paused, so new BTC stays liquid, and the running ones still end on schedule." : ""}`}
+            </InfoTip>
+        </span>
+    );
+}
+
+function Part({ label, wei }: { label: ReactNode; wei: bigint | undefined }) {
     return (
         <>
             <dt className="whitespace-nowrap">{label}</dt>
@@ -384,7 +410,7 @@ function SinceLaunch({ launch, sample }: { launch: number | undefined; sample: P
         launch !== undefined && perShare !== undefined
             ? `One BTC put in when the pool opened on ${day.format(launch * 1000)} is worth ${formatBtc(perShare)} BTC today.${
                   unlocking && data?.unlockAt
-                      ? ` Up to ${formatBtc(unlocking)} BTC of earnings is still unlocking into it, fully in by ${day.format(Number(data.unlockAt) * 1000)}.`
+                      ? ` ${data.unlockingExact ? "Another" : "Up to"} ${formatBtc(unlocking)} BTC of earnings is still unlocking into it, fully in by ${day.format(Number(data.unlockAt) * 1000)}.`
                       : ""
               }`
             : "How much one BTC put in when the pool opened is worth today.";

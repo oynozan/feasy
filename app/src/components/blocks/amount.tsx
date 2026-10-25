@@ -24,7 +24,7 @@ import {
     type BridgeState,
 } from "@/lib/bridge";
 import { EXPLORER } from "@/lib/chain";
-import { GAS_RESERVE, useQueue, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
+import { GAS_RESERVE, useQueue, useSleeve, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
 import { glide, pop, rise, springy } from "@/lib/motion";
 import type { Source as Token } from "@/lib/swap";
@@ -132,7 +132,9 @@ export function Withdraw() {
     const { data } = useVault();
     const tx = useVaultTx();
     const queue = useQueue();
+    const sleeve = useSleeve();
     const [kind, setKind] = useState<"withdraw" | "request">("withdraw");
+    const weeks = sleeve ? `${sleeve.lockWeeks} week${sleeve.lockWeeks === 1 ? "" : "s"}` : "";
 
     // Only v6 unlocks earnings over a week and queues large exits, v5 gets no question mark here
     const tip =
@@ -140,7 +142,9 @@ export function Withdraw() {
             data?.unlocking !== undefined &&
                 "New earnings unlock into the share price over 7 days, so leaving early hands your still unlocking part to the people who stay.",
             queue &&
-                "More than you can take out right now goes into a line that pays in order. A request in line can’t be cancelled.",
+                (sleeve
+                    ? `Up to a quarter of the pool sits in veBTC locks that end on Thursdays, so more than you can take out right now waits in a line paid as locks end, within ${weeks} and usually one. A request in line can’t be cancelled.`
+                    : "More than you can take out right now goes into a line that pays in order. A request in line can’t be cancelled."),
             queue &&
                 queue.backlog > 0n &&
                 "Requests already in line get paid first, so less can be taken out right away.",

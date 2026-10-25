@@ -35,6 +35,13 @@ export function priceAtRatio(price: number, ratio: number, target: number) {
 }
 
 // Yearly MUSD yield of sMUSD per MUSD, from its yield index at two blocks
+// v7 reads raw assets live, so a loss nets against the profit lock before the next checkpoint does
+export function nettedLock(locked: bigint, raw: bigint, recorded: bigint) {
+    if (raw >= recorded) return locked;
+    const loss = recorded - raw;
+    return locked > loss ? locked - loss : 0n;
+}
+
 // Mezo pays savings on Thursdays around 00:20 UTC, an hour later every payout has landed
 export function lastPayout(seconds: number) {
     const week = 7 * 24 * 60 * 60;

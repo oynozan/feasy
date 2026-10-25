@@ -28,6 +28,9 @@ export const vault = {
         "function lockedProfit() view returns (uint256)",
         "function profit() view returns (uint128 locked, uint64 lockedAt, uint64 unlockAt)",
         "function queue() view returns (address)",
+        "function sleeve() view returns (address)",
+        "function rawAssets() view returns (uint256)",
+        "function recorded() view returns (uint256)",
         "function depositBTC(address receiver) payable returns (uint256)",
         "function withdraw(uint256 assets, address receiver, address owner) returns (uint256)",
         "function redeem(uint256 shares, address receiver, address owner) returns (uint256)",
@@ -41,6 +44,8 @@ export const vault = {
         "error ZeroShares()",
         "error NotQueue()",
         "error NotGuardian()",
+        "error RollWindow()",
+        "error RollGas()",
     ]),
 } as const;
 
@@ -93,4 +98,13 @@ export const redeemQueue = parseAbi([
     "error NotVault()",
     "error BadReceiver()",
     "error BadParams()",
+]);
+
+// v7 keeps up to a quarter of the pool in veBTC locks ending on consecutive Thursdays, at vault.sleeve()
+export const veSleeve = parseAbi([
+    "function principal() view returns (uint256)",
+    "function paused() view returns (bool)",
+    "function live() view returns (bool)",
+    "function lockWeeks() view returns (uint8)",
+    "function rungs(uint256 i) view returns (uint256 id, uint128 amount, uint64 end)",
 ]);

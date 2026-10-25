@@ -37,11 +37,12 @@ import {
     priceFeed,
     rateManager,
     redeemQueue,
+    veSleeve,
     troveManager,
     vault,
     VAULT_FROM_BLOCK,
 } from "./chain";
-import { lastPayout, sampleBlocks, savingsApr, sharesToAssets, vaultYield, type Trove } from "./math";
+import { lastPayout, nettedLock, sampleBlocks, savingsApr, sharesToAssets, vaultYield, type Trove } from "./math";
 
 const WEEK = 7 * 24 * 60 * 60;
 // Mezo testnet averages about 4.6 seconds a block, only used to pick a block a week back
@@ -97,6 +98,9 @@ export function useVault() {
             { ...vault, functionName: "lockedProfit" },
             { ...vault, functionName: "profit" },
             { ...vault, functionName: "queue" },
+            { ...vault, functionName: "rawAssets" },
+            { ...vault, functionName: "recorded" },
+            { ...vault, functionName: "sleeve" },
         ],
         query: { refetchInterval: 12_000 },
     });
@@ -104,7 +108,10 @@ export function useVault() {
     if (!data) return { isPending, data: undefined };
     const [price, lastPrice, totalAssets, totalSupply, trove, savingsValue, targetCR, minCR, troveRate, rate, ...rest] =
         data;
-    const [shares, maxWithdraw, maxRedeem, maxDeposit, borrowing, lockedProfit, profit, queue] = rest;
+    const [shares, maxWithdraw, maxRedeem, maxDeposit, borrowing, lockedProfit, profit, queue, raw, recorded, sleeve] =
+        rest;
+    const locked = lockedProfit.result as bigint | undefined;
+    const exact = raw.result !== undefined && recorded.result !== undefined;
     const t = trove.result as Trove | undefined;
     const assets = totalAssets.result ?? 0n;
     const supply = totalSupply.result ?? 0n;
@@ -131,7 +138,13 @@ export function useVault() {
             maxDeposit: maxDeposit.result ?? 0n,
             borrowing: (borrowing.result as boolean | undefined) ?? true,
             // v6 only, undefined on v5
-            unlocking: lockedProfit.result as bigint | undefined,
+            unlocking:
+                locked !== undefined && exact
+                    ? nettedLock(locked, raw.result as bigint, recorded.result as bigint)
+                    : locked,
+            // Only v7 can net a loss, v6 shows the stored lock which may run high
+            unlockingExact: exact,
+            sleeve: sleeve.result && sleeve.result !== zeroAddress ? (sleeve.result as Address) : undefined,
             unlockAt: (profit.result as readonly [bigint, bigint, bigint] | undefined)?.[2],
             queue: queue.result as Address | undefined,
         },
@@ -236,6 +249,41 @@ export function useLegacy() {
     const shares = data?.[0].result;
     const assets = data?.[1].result;
     return address && shares && assets ? { shares, assets } : undefined;
+}
+
+// v7's veBTC locks, up to a quarter of the pool, each ending on a Thursday at 00:00 UTC
+export function useSleeve() {
+    const { data } = useVault();
+    const sleeve = data?.sleeve;
+    const reads = useReadContracts({
+        allowFailure: false,
+        contracts: [
+            { address: sleeve!, abi: veSleeve, functionName: "principal" },
+            { address: sleeve!, abi: veSleeve, functionName: "paused" },
+            { address: sleeve!, abi: veSleeve, functionName: "live" },
+            { address: sleeve!, abi: veSleeve, functionName: "lockWeeks" },
+            ...[0n, 1n, 2n, 3n].map((i) => ({ address: sleeve!, abi: veSleeve, functionName: "rungs", args: [i] })),
+        ] as never,
+        query: { enabled: !!sleeve, refetchInterval: 60_000 },
+    }).data as unknown[] | undefined;
+    if (!sleeve || !reads) return undefined;
+    const [principal, paused, live, lockWeeks, ...rungs] = reads as [
+        bigint,
+        boolean,
+        boolean,
+        number,
+        ...(readonly [bigint, bigint, bigint])[],
+    ];
+    return {
+        principal,
+        // Paused or Mezo Earn down means no new locks, the running ones still end on schedule
+        open: !paused && live,
+        lockWeeks,
+        rungs: rungs
+            .filter(([id]) => id !== 0n)
+            .map(([, amount, end]) => ({ amount, end: Number(end) }))
+            .sort((a, b) => a.end - b.end),
+    };
 }
 
 export function useWalletBtc() {
