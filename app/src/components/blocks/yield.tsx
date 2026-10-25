@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import NumberFlow from "@number-flow/react";
-import { ArrowRightIcon, BookOpenIcon } from "@heroicons/react/20/solid";
-import { motion } from "motion/react";
+import { ArrowRightIcon, BookOpenIcon, ChartBarIcon } from "@heroicons/react/20/solid";
+import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVault, useYield } from "@/lib/hooks";
 import { btcParts, loanState, type LoanState } from "@/lib/math";
@@ -73,13 +73,22 @@ export function PoolStats() {
     const [docs, setDocs] = useState(false);
     return (
         <div className="flex shrink-0 gap-1.5 lg:h-[68px]">
-            <motion.div className="min-w-0 flex-1" whileHover="hover" whileTap={{ scale: 0.97 }} transition={springy}>
+            {/* Both tiles start from a square, whichever is not open stays one and the other takes the rest */}
+            <motion.div
+                className="min-w-0 basis-[68px]"
+                initial={false}
+                animate={{ flexGrow: docs ? 0 : 1 }}
+                whileHover="hover"
+                whileTap={{ scale: 0.97 }}
+                transition={springy}
+            >
                 <Link
                     href="/pool"
-                    className="flex h-full min-h-[68px] items-center justify-between gap-3 overflow-hidden rounded-block bg-gold px-6 text-base font-medium whitespace-nowrap text-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--gold),var(--white)_16%)]"
+                    aria-label="Pool stats"
+                    className="flex h-full min-h-[68px] items-center justify-between overflow-hidden rounded-block bg-gold px-6 text-base font-medium whitespace-nowrap text-foreground transition-colors hover:bg-[color-mix(in_oklab,var(--gold),var(--white)_16%)]"
                 >
-                    {/* The docs label borrows this tile's width, so this one steps aside */}
                     <motion.span
+                        aria-hidden="true"
                         className="overflow-hidden"
                         initial={false}
                         animate={{ opacity: docs ? 0 : 1, width: docs ? 0 : "auto" }}
@@ -87,15 +96,26 @@ export function PoolStats() {
                     >
                         Pool stats
                     </motion.span>
-                    <motion.span className="shrink-0" variants={{ hover: { x: 5 } }} transition={springy}>
-                        <ArrowRightIcon className="size-5" />
-                    </motion.span>
+                    {/* Squared up beside the docs, the tile says what it opens with a chart instead of an arrow */}
+                    <AnimatePresence mode="popLayout" initial={false}>
+                        <motion.span
+                            key={docs ? "chart" : "arrow"}
+                            className="shrink-0"
+                            variants={{ hover: { x: docs ? 0 : 5 } }}
+                            initial={{ opacity: 0, scale: 0.4, rotate: -45 }}
+                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                            exit={{ opacity: 0, scale: 0.4, rotate: 45 }}
+                            transition={springy}
+                        >
+                            {docs ? <ChartBarIcon className="size-5" /> : <ArrowRightIcon className="size-5" />}
+                        </motion.span>
+                    </AnimatePresence>
                 </Link>
             </motion.div>
             <motion.div
-                className="shrink-0 overflow-hidden rounded-block bg-card"
+                className="min-w-0 basis-[68px] overflow-hidden rounded-block bg-card"
                 initial={false}
-                animate={{ width: docs ? "auto" : 68 }}
+                animate={{ flexGrow: docs ? 1 : 0 }}
                 whileTap={{ scale: 0.95 }}
                 transition={springy}
                 onHoverStart={() => setDocs(true)}

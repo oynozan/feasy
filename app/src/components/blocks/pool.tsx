@@ -377,11 +377,14 @@ function SinceLaunch({ launch, sample }: { launch: number | undefined; sample: P
     const change = Number(shown ?? WAD) / 1e18 - 1;
     // Under half a hundredth of a percent rounds to 0.00%, which takes no sign
     const sign = Math.abs(change) < 0.00005 ? "" : change > 0 ? "+" : "−";
+    // A loss only nets against the lock at the next checkpoint, so v6 can overstate it and a crumb is left out
+    const unlocking =
+        data?.unlocking && data.unlockAt && data.unlocking * 10_000n >= data.totalAssets ? data.unlocking : undefined;
     const tip =
         launch !== undefined && perShare !== undefined
             ? `One BTC put in when the pool opened on ${day.format(launch * 1000)} is worth ${formatBtc(perShare)} BTC today.${
-                  data?.unlocking && data.unlockAt
-                      ? ` Another ${formatBtc(data.unlocking)} BTC of earnings is still unlocking into it, fully in by ${day.format(Number(data.unlockAt) * 1000)}.`
+                  unlocking && data?.unlockAt
+                      ? ` Up to ${formatBtc(unlocking)} BTC of earnings is still unlocking into it, fully in by ${day.format(Number(data.unlockAt) * 1000)}.`
                       : ""
               }`
             : "How much one BTC put in when the pool opened is worth today.";
