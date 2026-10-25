@@ -122,7 +122,9 @@ export function PoolStats() {
                 onHoverEnd={() => setDocs(false)}
             >
                 <Link
-                    href="/docs"
+                    href="https://docs.feasy.org"
+                    target="_blank"
+                    rel="noreferrer"
                     aria-label="Documentation"
                     onFocus={() => setDocs(true)}
                     onBlur={() => setDocs(false)}
