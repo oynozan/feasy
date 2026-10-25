@@ -51,6 +51,9 @@ export const rateManager = {
     abi: parseAbi(["function interestRate() view returns (uint16)"]),
 } as const;
 
+// The app runs on Mezo testnet unless a build sets NEXT_PUBLIC_MEZO_NETWORK to mainnet
+export const MEZO_MAINNET = process.env.NEXT_PUBLIC_MEZO_NETWORK === "mainnet";
+
 // Mezo mainnet, read only for the rates the yield is quoted at since testnet's savings pay a made up rate
 export const MAINNET_RPC = "https://rpc-http.mezo.boar.network";
 

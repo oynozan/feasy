@@ -1,23 +1,38 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowPathIcon, ArrowTopRightOnSquareIcon, CheckIcon, XMarkIcon } from "@heroicons/react/16/solid";
+import {
+    ArrowPathIcon,
+    ArrowRightIcon,
+    ArrowTopRightOnSquareIcon,
+    CheckIcon,
+    ChevronDownIcon,
+    XMarkIcon,
+} from "@heroicons/react/16/solid";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
 import { formatUnits, parseUnits } from "viem";
 import { useAccount, useGasPrice } from "wagmi";
 import { Button } from "@/components/ui/button";
-import { BRIDGE_MINUTES, useBridge, useTbtc, type BridgeState } from "@/lib/bridge";
+import {
+    BRIDGE_MINUTES,
+    ETHEREUM_EXPLORER,
+    SWAPS,
+    useBridge,
+    useEthereumBtc,
+    useSwapQuote,
+    type BridgeState,
+} from "@/lib/bridge";
 import { EXPLORER } from "@/lib/chain";
 import { useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
 import { pop, rise, springy } from "@/lib/motion";
+import type { Source as Token } from "@/lib/swap";
 import { cn } from "@/lib/utils";
 import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Press } from "../block";
 
 // Enough gas for this deposit and a later withdrawal, a Bitcoin wallet's smart account pays both refunds from here
 const GAS_RESERVE = 3_000_000n;
-const SEPOLIA_EXPLORER = "https://sepolia.etherscan.io";
 
 type Source = "btc" | "tbtc";
 type Connect = { label: string; run: () => void } | undefined;
@@ -29,7 +44,8 @@ export function Deposit() {
     const gasPrice = useGasPrice().data;
     const { data } = useVault();
     const tx = useVaultTx();
-    const tbtc = useTbtc();
+    const [token, setToken] = useState<Token>("tBTC");
+    const ethereum = useEthereumBtc(token);
     const bridge = useBridge(address);
     const [source, setSource] = useState<Source>("btc");
     const [prefill, setPrefill] = useState("");
@@ -39,7 +55,7 @@ export function Deposit() {
     const max = fromWallet !== undefined && data ? min(fromWallet, data.maxDeposit) : undefined;
     const blocked = data?.maxDeposit === 0n ? (data.stale ? "Prices are updating" : "Deposits are paused") : undefined;
     const status = bridge.state.status;
-    const bridging = status === "approve" || status === "bridge" || status === "locking" || status === "arriving";
+    const bridging = status !== "idle" && status !== "arrived" && status !== "error";
     const connectMezo: Connect = isConnected ? undefined : { label: "Connect wallet", run: () => openConnectModal?.() };
 
     // A bridge picked up again after a reload brings its progress back into view
@@ -61,27 +77,29 @@ export function Deposit() {
     if (source === "tbtc") {
         return (
             <>
-                <BridgeSteps state={bridge.state} />
+                <BridgeSteps state={bridge.state} swap={token !== "tBTC"} />
                 <AmountForm
                     key="tbtc"
                     title={title}
                     source="On Ethereum"
-                    unit="tBTC"
-                    verb="Bridge to Mezo"
-                    busy="Bridging"
-                    over="Not enough tBTC"
-                    max={tbtc.balance}
-                    least={tbtc.min}
-                    blocked={tbtc.available ? undefined : "No Ethereum wallet found"}
+                    unit={token}
+                    picker={SWAPS && <TokenPicker value={token} onChange={setToken} disabled={bridging} />}
+                    extra={(amount) => token !== "tBTC" && <SwapQuote token={token} amount={amount} />}
+                    verb={token === "tBTC" ? "Bridge to Mezo" : "Swap and bridge"}
+                    busy={status === "swap" || status === "swapping" ? "Swapping" : "Bridging"}
+                    over={`Not enough ${token}`}
+                    max={ethereum.balance}
+                    least={ethereum.min}
+                    blocked={ethereum.available ? undefined : "No Ethereum wallet found"}
                     connect={
                         connectMezo ??
-                        (tbtc.available && !tbtc.account
-                            ? { label: "Connect Ethereum wallet", run: tbtc.connect }
+                        (ethereum.available && !ethereum.account
+                            ? { label: "Connect Ethereum wallet", run: ethereum.connect }
                             : undefined)
                     }
                     tx={asTx(bridge.state)}
                     onEdit={bridge.reset}
-                    onSubmit={bridge.send}
+                    onSubmit={(amount) => bridge.send(amount, token)}
                 />
             </>
         );
@@ -185,7 +203,7 @@ function SourceToggle({
                                 transition={springy}
                             />
                         )}
-                        <span className="relative">{option === "btc" ? "BTC" : "tBTC"}</span>
+                        <span className="relative">{option === "btc" ? "BTC" : SWAPS ? "Ethereum" : "tBTC"}</span>
                         {option === "tbtc" && bridging && (
                             <span aria-hidden="true" className="relative size-1.5 animate-pulse rounded-full bg-gold" />
                         )}
@@ -193,9 +211,9 @@ function SourceToggle({
                 ))}
             </div>
             <InfoTip>
-                tBTC is Bitcoin on Ethereum. Send it from any Ethereum wallet and it lands here as BTC in about{" "}
-                {BRIDGE_MINUTES} minutes, with no bridge fee. Holding WBTC or cbBTC? Swap it to tBTC on Ethereum first.
-                Wrapped BTC already on Mezo can’t be deposited.
+                {SWAPS
+                    ? `Send tBTC, WBTC or cbBTC from any Ethereum wallet. WBTC and cbBTC swap into tBTC first, then it lands here as BTC in about ${BRIDGE_MINUTES} minutes, with no bridge fee. Wrapped BTC already on Mezo can’t be deposited.`
+                    : `tBTC is Bitcoin on Ethereum. Send it from any Ethereum wallet and it lands here as BTC in about ${BRIDGE_MINUTES} minutes, with no bridge fee. Holding WBTC or cbBTC? Swap it to tBTC on Ethereum first. Wrapped BTC already on Mezo can’t be deposited.`}
             </InfoTip>
         </div>
     );
@@ -205,6 +223,8 @@ type AmountFormProps = {
     title: ReactNode;
     source: string;
     unit: string;
+    picker?: ReactNode;
+    extra?: (amount: bigint | undefined) => ReactNode;
     verb: string;
     busy: string;
     over: string;
@@ -222,6 +242,8 @@ function AmountForm({
     title,
     source,
     unit,
+    picker,
+    extra,
     verb,
     busy,
     over,
@@ -302,7 +324,7 @@ function AmountForm({
                                 onChange={(event) => edit(cleanAmount(event.target.value))}
                                 className="max-w-full min-w-[1ch] bg-transparent font-heading text-[44px] leading-none font-bold tracking-[-0.03em] outline-none [field-sizing:content] placeholder:text-muted-foreground/40"
                             />
-                            <span className="ml-2 text-[18px] text-muted-foreground">{unit}</span>
+                            {picker || <span className="ml-2 text-[18px] text-muted-foreground">{unit}</span>}
                         </span>
                     </FigureRow>
                     <AnimatePresence initial={false}>
@@ -337,6 +359,7 @@ function AmountForm({
                         )}
                     </AnimatePresence>
                 </div>
+                {extra?.(amount)}
                 <Press className="mt-auto" disabled={!connect && !ready}>
                     <Button
                         type="submit"
@@ -376,23 +399,136 @@ function TxSteps({ tx, done }: { tx: TxState; done: string }) {
     );
 }
 
-function BridgeSteps({ state }: { state: BridgeState }) {
+function BridgeSteps({ state, swap }: { state: BridgeState; swap: boolean }) {
     const hash = "hash" in state ? state.hash : undefined;
     const left = useMinutesLeft(state.status === "arriving" ? state.lockedAt : undefined);
+    // A swap takes the second step and folds the tBTC approval into the bridge step
+    const at =
+        state.status === "error"
+            ? (state.at ?? (hash ? 2 : 1))
+            : {
+                  idle: 0,
+                  swap: 1,
+                  swapping: 1,
+                  approve: swap ? 2 : 1,
+                  bridge: 2,
+                  locking: 2,
+                  arriving: 3,
+                  arrived: 4,
+              }[state.status];
+    const linkAt = state.status === "swapping" || (state.status === "error" && state.at === 1) ? 1 : 2;
     return (
         <Steps
-            labels={["Amount", "Approve", "Bridge", "Arrive"]}
-            at={
-                { idle: 0, approve: 1, bridge: 2, locking: 2, arriving: 3, arrived: 4, error: hash ? 2 : 1 }[
-                    state.status
-                ]
-            }
+            labels={["Amount", swap ? "Swap" : "Approve", "Bridge", "Arrive"]}
+            at={at}
             failed={state.status === "error"}
             spinning={state.status !== "idle" && state.status !== "arrived" && state.status !== "error"}
-            link={hash && { at: 2, href: `${SEPOLIA_EXPLORER}/tx/${hash}` }}
+            link={hash && { at: linkAt, href: `${ETHEREUM_EXPLORER}/tx/${hash}` }}
             note={left === undefined ? undefined : { at: 3, text: left > 0 ? `~${left} min` : "Any minute" }}
             message={state.status === "error" ? state.message : undefined}
         />
+    );
+}
+
+// The token sent from Ethereum, WBTC and cbBTC swap into tBTC before the bridge
+function TokenPicker({
+    value,
+    onChange,
+    disabled,
+}: {
+    value: Token;
+    onChange: (next: Token) => void;
+    disabled: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    return (
+        <span className="relative ml-2">
+            <button
+                type="button"
+                aria-label={`Token, ${value}`}
+                aria-expanded={open}
+                disabled={disabled}
+                onClick={() => setOpen((was) => !was)}
+                className="inline-flex items-center gap-1 rounded-full bg-card py-1 pr-2 pl-3 text-[18px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+            >
+                {value}
+                <motion.span animate={{ rotate: open ? 180 : 0 }} transition={springy}>
+                    <ChevronDownIcon className="size-4" />
+                </motion.span>
+            </button>
+            <AnimatePresence>
+                {open && (
+                    <>
+                        <button
+                            type="button"
+                            aria-hidden="true"
+                            tabIndex={-1}
+                            className="fixed inset-0 z-40 cursor-default"
+                            onClick={() => setOpen(false)}
+                        />
+                        <motion.ul
+                            key="tokens"
+                            className="absolute top-11 left-0 z-50 w-36 origin-top-left rounded-tile bg-card p-1.5 shadow-[0_16px_40px_-16px_rgb(24_23_23/0.35)] ring-1 ring-foreground/5"
+                            initial={{ opacity: 0, scale: 0.9, y: -6 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.12 } }}
+                            transition={pop}
+                        >
+                            {(["tBTC", "WBTC", "cbBTC"] as const).map((option) => (
+                                <li key={option}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setOpen(false);
+                                            onChange(option);
+                                        }}
+                                        className={cn(
+                                            "flex h-10 w-full items-center rounded-[14px] px-3 text-left text-[15px] font-medium transition-colors hover:bg-secondary",
+                                            option === value && "bg-secondary",
+                                        )}
+                                    >
+                                        {option}
+                                    </button>
+                                </li>
+                            ))}
+                        </motion.ul>
+                    </>
+                )}
+            </AnimatePresence>
+        </span>
+    );
+}
+
+// What lands on Mezo after the swap, from a live quote
+function SwapQuote({ token, amount }: { token: Token; amount: bigint | undefined }) {
+    const out = useSwapQuote(token, amount);
+    // The same 3% the bridge hook refuses at, so the warning shows before anyone signs
+    const thin = !!amount && !!out && out * 100n < amount * 97n;
+    return (
+        <AnimatePresence initial={false}>
+            {!!amount && (
+                <motion.p
+                    key="quote"
+                    className={cn(
+                        "mt-3 flex h-6 items-center gap-1.5 text-[15px] tabular-nums",
+                        thin || out === null ? "text-danger" : "text-muted-foreground",
+                    )}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={pop}
+                >
+                    <ArrowRightIcon className="size-4" />
+                    {out === undefined
+                        ? "Quoting…"
+                        : out === null
+                          ? "No swap route for that size"
+                          : thin
+                            ? "Not enough liquidity for that size"
+                            : `${formatBtc(out)} BTC on Mezo`}
+                </motion.p>
+            )}
+        </AnimatePresence>
     );
 }
 
@@ -550,8 +686,10 @@ function StepDot({
 
 // The form only needs to know whether the wallet or the network is busy with the bridge
 function asTx(state: BridgeState): TxState {
-    if (state.status === "approve" || state.status === "bridge") return { status: "wallet" };
-    if (state.status === "locking" || state.status === "arriving") return { status: "pending", hash: state.hash };
+    if (state.status === "swap" || state.status === "approve" || state.status === "bridge") return { status: "wallet" };
+    if (state.status === "swapping" || state.status === "locking" || state.status === "arriving") {
+        return { status: "pending", hash: state.hash };
+    }
     if (state.status === "error") return state;
     return { status: "idle" };
 }
