@@ -4,10 +4,13 @@ import { mezoTestnet } from "viem/chains";
 export const EXPLORER = "https://explorer.test.mezo.org";
 
 // Logs before the vault's deployment block hold nothing of ours
-export const VAULT_FROM_BLOCK = 16_337_559n;
+export const VAULT_FROM_BLOCK = 16_353_457n;
+
+// v5 stays live and keeps paying exits, the Move row brings what is left there into v6
+export const LEGACY_VAULT = "0x2964612e8976b4003083E6014cA39f5fD7b41f3A";
 
 export const vault = {
-    address: "0x2964612e8976b4003083E6014cA39f5fD7b41f3A",
+    address: "0xb7A15aB24483Dfe92056F73279ECF11CE00675db",
     abi: parseAbi([
         "function balanceOf(address) view returns (uint256)",
         "function totalAssets() view returns (uint256)",
@@ -86,6 +89,7 @@ export const redeemQueue = parseAbi([
     "function sharesAhead(uint256 id) view returns (uint256)",
     "function requestsOf(address owner) view returns (uint256[])",
     "function queueState() view returns (uint256 queued, uint256 filled, uint256 reservedBtc, uint256 requests)",
+    "event Claimed(uint256 indexed id, address indexed owner, address indexed receiver, uint256 shares, uint256 assets)",
     "error NotVault()",
     "error BadReceiver()",
     "error BadParams()",

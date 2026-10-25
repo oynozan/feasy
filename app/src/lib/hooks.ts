@@ -29,6 +29,7 @@ import {
     useWriteContract,
 } from "wagmi";
 import {
+    LEGACY_VAULT,
     MAINNET_RPC,
     mainnetRates,
     mainnetSavings,
@@ -46,6 +47,8 @@ const WEEK = 7 * 24 * 60 * 60;
 // Mezo testnet averages about 4.6 seconds a block, only used to pick a block a week back
 const BLOCK_SECONDS = 4.6;
 const LOG_RANGE = 10_000n;
+// Enough gas for a deposit and a later withdrawal, a Bitcoin wallet's smart account pays both refunds from here
+export const GAS_RESERVE = 3_000_000n;
 const BARS = 32;
 
 /* Session */
@@ -220,6 +223,21 @@ export function useQueue() {
     };
 }
 
+// What the active wallet still has in v5, the old vault only holds idle BTC so its max pays in full
+export function useLegacy() {
+    const { address } = useAccount();
+    const { data } = useReadContracts({
+        contracts: [
+            { address: LEGACY_VAULT, abi: vault.abi, functionName: "maxRedeem", args: [address!] },
+            { address: LEGACY_VAULT, abi: vault.abi, functionName: "maxWithdraw", args: [address!] },
+        ],
+        query: { enabled: !!address, refetchInterval: 30_000 },
+    });
+    const shares = data?.[0].result;
+    const assets = data?.[1].result;
+    return address && shares && assets ? { shares, assets } : undefined;
+}
+
 export function useWalletBtc() {
     const { address } = useAccount();
     return useBalance({ address, query: { enabled: !!address, refetchInterval: 12_000 } }).data?.value;
@@ -309,7 +327,11 @@ export function useHistory() {
         enabled: !!client && addresses.length > 0,
         staleTime: 60_000,
         queryFn: async () => {
-            const latest = await client!.getBlock();
+            const [latest, queue] = await Promise.all([
+                client!.getBlock(),
+                client!.readContract({ ...vault, functionName: "queue" }).catch(() => undefined),
+            ]);
+            const escrow = queue?.toLowerCase();
             const ranges: [bigint, bigint][] = [];
             for (let from = VAULT_FROM_BLOCK; from <= latest.number; from += LOG_RANGE) {
                 const to = from + LOG_RANGE - 1n;
@@ -320,8 +342,8 @@ export function useHistory() {
                 await Promise.all(
                     ranges.map(([fromBlock, toBlock]) =>
                         client!.getLogs({
-                            address: vault.address,
-                            events: eventsOf(),
+                            address: queue ? [vault.address, queue] : vault.address,
+                            events: [...eventsOf(), ...redeemQueue.filter((item) => item.type === "event")],
                             fromBlock,
                             toBlock,
                             strict: true,
@@ -331,9 +353,12 @@ export function useHistory() {
             ).flat();
             logs.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
 
+            // A share moving into the queue's escrow still belongs to its holder, so only the claim counts
             const ours = logs.filter((log) =>
                 log.eventName === "Transfer"
-                    ? mine.has(log.args.from.toLowerCase()) || mine.has(log.args.to.toLowerCase())
+                    ? (mine.has(log.args.from.toLowerCase()) || mine.has(log.args.to.toLowerCase())) &&
+                      log.args.from.toLowerCase() !== escrow &&
+                      log.args.to.toLowerCase() !== escrow
                     : mine.has(log.args.owner.toLowerCase()),
             );
             // Mezo's logs carry blockTimestamp as 0x0, so the times come from the blocks
@@ -354,6 +379,11 @@ export function useHistory() {
                     // A move between two of the wallets adds and takes away the same shares
                     if (mine.has(to.toLowerCase())) moves.push({ block: log.blockNumber, delta: value });
                     if (mine.has(from.toLowerCase())) moves.push({ block: log.blockNumber, delta: -value });
+                } else if (log.eventName === "Claimed") {
+                    // A filled request paid out, its shares are gone and its BTC landed in the wallet
+                    moves.push({ block: log.blockNumber, delta: -log.args.shares });
+                    deposited -= log.args.assets;
+                    activity.push({ kind: "withdraw", assets: log.args.assets, time, hash: log.transactionHash });
                 } else {
                     const kind = log.eventName === "Deposit" ? "deposit" : "withdraw";
                     deposited += kind === "deposit" ? log.args.assets : -log.args.assets;
@@ -412,6 +442,8 @@ export type TxState =
 type VaultCall =
     | { functionName: "depositBTC"; args: readonly [Address]; value: bigint }
     | { functionName: "withdraw" | "redeem"; args: readonly [bigint, Address, Address] }
+    // An exit from v5, which the Move row sends before depositing into v6
+    | { functionName: "redeem"; args: readonly [bigint, Address, Address]; at: Address }
     // v6 sends exit requests and claims to its queue contract instead
     | { functionName: "requestRedeem"; args: readonly [bigint, Address, Address]; queue: Address }
     | { functionName: "claim"; args: readonly [readonly bigint[]]; queue: Address };
@@ -448,8 +480,13 @@ function useTxState() {
         setState({ status: "wallet" });
         let hash: Hash | undefined;
         try {
-            const { queue, ...rest } = { queue: undefined, ...call } as VaultCall & { queue?: Address };
-            const target = queue ? { address: queue, abi: redeemQueue } : vault;
+            const { queue, at, ...rest } = { queue: undefined, at: undefined, ...call } as VaultCall & {
+                queue?: Address;
+                at?: Address;
+            };
+            const target = queue
+                ? { address: queue, abi: redeemQueue }
+                : { address: at ?? vault.address, abi: vault.abi };
             // VaultCall already pins each call's shape, viem just cannot narrow the union
             const request = { ...target, ...rest, account: address } as Parameters<typeof client.simulateContract>[0];
             // Mezo's gas estimate drops revert data while eth_call keeps it, so a doomed call fails here with its reason
@@ -471,7 +508,7 @@ function useTxState() {
             const receipt = await client.waitForTransactionReceipt({ hash });
             // A smart account can land while the call inside it reverts, so only a vault or queue event counts
             const ran = receipt.logs.some((log) =>
-                [vault.address, queue].some((at) => at && log.address.toLowerCase() === at.toLowerCase()),
+                [target.address, vault.address].some((to) => log.address.toLowerCase() === to.toLowerCase()),
             );
             if (receipt.status !== "success" || !ran) throw new Failed("The vault call didn't go through.");
             setState({ status: "done", hash });

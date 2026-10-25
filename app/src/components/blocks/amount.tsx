@@ -24,15 +24,12 @@ import {
     type BridgeState,
 } from "@/lib/bridge";
 import { EXPLORER } from "@/lib/chain";
-import { useQueue, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
+import { GAS_RESERVE, useQueue, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
 import { pop, rise, springy } from "@/lib/motion";
 import type { Source as Token } from "@/lib/swap";
 import { cn } from "@/lib/utils";
 import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Press } from "../block";
-
-// Enough gas for this deposit and a later withdrawal, a Bitcoin wallet's smart account pays both refunds from here
-const GAS_RESERVE = 3_000_000n;
 
 type Source = "btc" | "tbtc";
 type Connect = { label: string; run: () => void } | undefined;

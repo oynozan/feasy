@@ -7,13 +7,24 @@ import { ArrowDownRightIcon, ArrowsRightLeftIcon, ArrowUpRightIcon, PlusIcon } f
 import { useBitcoinAccount } from "@mezo-org/orangekit";
 import { ConnectButton, useConnectModal } from "@rainbow-me/rainbowkit";
 import { AnimatePresence, motion } from "motion/react";
-import { useAccount, useConnect, useConnections, useConnectors, useSwitchAccount } from "wagmi";
+import { useAccount, useConnect, useConnections, useConnectors, usePublicClient, useSwitchAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isBitcoinWallet, useHistory, useHoldings, useQueue, useSignedOut, useVaultTx, type Bar } from "@/lib/hooks";
+import { LEGACY_VAULT } from "@/lib/chain";
+import {
+    GAS_RESERVE,
+    isBitcoinWallet,
+    useHistory,
+    useHoldings,
+    useLegacy,
+    useQueue,
+    useSignedOut,
+    useVaultTx,
+    type Bar,
+} from "@/lib/hooks";
 import { btcParts, formatBtc } from "@/lib/math";
 import { flow, grow, pop, rise, springy } from "@/lib/motion";
-import { Block, BlockHeader, Chip, Eyebrow, FigureRow, Press, Reveal } from "../block";
+import { Block, BlockHeader, Chip, Eyebrow, FigureRow, InfoTip, Press, Reveal } from "../block";
 import { Wordmark } from "../frame";
 import { Magnet } from "../magnet";
 
@@ -76,6 +87,8 @@ function SignedIn({ open }: { open: boolean }) {
     const holdings = useHoldings();
     const queue = useQueue();
     const queued = queue ? queue.waiting + queue.claimable : 0n;
+    // BTC still in the old vault or waiting in the queue is yours too, so the total counts it
+    const elsewhere = queued + (useLegacy()?.assets ?? 0n);
     const history = useHistory().data;
     const [pointed, setPointed] = useState<number | null>(null);
     const bar = pointed !== null ? history?.bars[pointed] : undefined;
@@ -110,9 +123,10 @@ function SignedIn({ open }: { open: boolean }) {
             </Eyebrow>
             <FigureRow>
                 <Reveal ready={ready} placeholder={<Skeleton className="h-10 w-60" />}>
-                    <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n) + (bar ? 0n : queued)} />
+                    <BtcFigure wei={(pool ?? 0n) + (inWallet ?? 0n) + (bar ? 0n : elsewhere)} />
                 </Reveal>
             </FigureRow>
+            <MoveRow />
             {/* The split under the total opens while the block is hovered or focused */}
             <AnimatePresence initial={false}>
                 {open && (
@@ -177,6 +191,70 @@ function Part({ label, wei, action }: { label: string; wei: bigint | undefined; 
                 {action}
             </dd>
         </>
+    );
+}
+
+type Move = "idle" | "redeeming" | "depositing" | "redeemFailed" | "depositFailed";
+
+// A position still in v5, pulled out and deposited into v6 with two signatures
+function MoveRow() {
+    const { address } = useAccount();
+    const client = usePublicClient();
+    const legacy = useLegacy();
+    const tx = useVaultTx();
+    const [stage, setStage] = useState<Move>("idle");
+    const [amount, setAmount] = useState(0n);
+    if (!legacy && (stage === "idle" || stage === "redeemFailed")) return null;
+
+    const deposit = async (value: bigint) => {
+        if (!address || !client) return;
+        setStage("depositing");
+        // A Bitcoin wallet's smart account pays its gas refund from its own BTC, so a little stays behind
+        const [wallet, gasPrice] = await Promise.all([client.getBalance({ address }), client.getGasPrice()]);
+        const reserve = GAS_RESERVE * gasPrice;
+        const room = wallet > reserve ? wallet - reserve : 0n;
+        const ok = await tx.send({ functionName: "depositBTC", args: [address], value: value < room ? value : room });
+        setStage(ok ? "idle" : "depositFailed");
+    };
+    const move = async () => {
+        if (!legacy || !address) return;
+        setAmount(legacy.assets);
+        setStage("redeeming");
+        const out = await tx.send({
+            functionName: "redeem",
+            args: [legacy.shares, address, address],
+            at: LEGACY_VAULT,
+        });
+        if (!out) return setStage("redeemFailed");
+        await deposit(legacy.assets);
+    };
+    const label = {
+        idle: "Move",
+        redeeming: "1 of 2…",
+        depositing: "2 of 2…",
+        redeemFailed: "Try again",
+        depositFailed: "Finish move",
+    }[stage];
+    const busy = stage === "redeeming" || stage === "depositing";
+
+    return (
+        <div data-row="chip" className="mt-3 flex h-8 items-center gap-1.5 text-[15px] text-muted-foreground">
+            <span className="tabular-nums">{formatBtc(legacy?.assets ?? amount)} BTC in the old vault</span>
+            <InfoTip>
+                Feasy moved to a new vault. Move takes your BTC out of the old one and puts it into the new one, which
+                takes two signatures.
+            </InfoTip>
+            <Press className="ml-auto" disabled={busy}>
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void (stage === "depositFailed" ? deposit(amount) : move())}
+                    className="h-8 rounded-full bg-gold px-3.5 text-[13px] font-medium text-foreground disabled:opacity-70"
+                >
+                    {label}
+                </button>
+            </Press>
+        </div>
     );
 }
 
