@@ -22,6 +22,11 @@ jobs:
               if: env.KEEPER_PK != ''
             - uses: foundry-rs/foundry-toolchain@v1
               if: env.KEEPER_PK != ''
+            # The keeper's math runs through a plain python command
+            - uses: actions/setup-python@v5
+              if: env.KEEPER_PK != ''
+              with:
+                  python-version: "3.12"
             - name: Keeper pass
               if: env.KEEPER_PK != ''
               env:
