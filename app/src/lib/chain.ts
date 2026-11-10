@@ -2,6 +2,7 @@ import { parseAbi } from "viem";
 import { mezoTestnet } from "viem/chains";
 
 export const EXPLORER = "https://explorer.test.mezo.org";
+export const FAUCET = "https://faucet.test.mezo.org";
 
 // Logs before the vault's deployment block hold nothing of ours
 export const VAULT_FROM_BLOCK = 16_686_260n;

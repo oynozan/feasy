@@ -23,7 +23,7 @@ import {
     useSwapQuote,
     type BridgeState,
 } from "@/lib/bridge";
-import { EXPLORER } from "@/lib/chain";
+import { EXPLORER, FAUCET, MEZO_MAINNET } from "@/lib/chain";
 import { GAS_RESERVE, useQueue, useSleeve, useVault, useVaultTx, useWalletBtc, type TxState } from "@/lib/hooks";
 import { formatBtc } from "@/lib/math";
 import { glide, pop, rise, springy } from "@/lib/motion";
@@ -62,6 +62,11 @@ export function Deposit() {
     const status = bridge.state.status;
     const bridging = status !== "idle" && status !== "arrived" && status !== "error";
     const connectMezo: Connect = isConnected ? undefined : { label: "Connect wallet", run: () => openConnectModal?.() };
+    // A wallet that can't cover a deposit and its gas starts at Mezo's faucet, the button flips back once BTC lands
+    const faucet: Connect =
+        !MEZO_MAINNET && fromWallet === 0n
+            ? { label: "Get testnet BTC", run: () => window.open(FAUCET, "_blank", "noopener") }
+            : undefined;
 
     // A bridge picked up again after a reload brings its progress back into view
     useEffect(() => {
@@ -124,7 +129,7 @@ export function Deposit() {
                 over="Not enough BTC"
                 max={max}
                 blocked={blocked}
-                connect={connectMezo}
+                connect={connectMezo ?? faucet}
                 initial={prefill}
                 tx={tx.state}
                 onEdit={tx.reset}
