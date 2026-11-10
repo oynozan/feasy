@@ -102,6 +102,7 @@ export function useVault() {
             { ...vault, functionName: "rawAssets" },
             { ...vault, functionName: "recorded" },
             { ...vault, functionName: "sleeve" },
+            { ...vault, functionName: "feeBps" },
         ],
         query: { refetchInterval: 12_000 },
     });
@@ -109,8 +110,20 @@ export function useVault() {
     if (!data) return { isPending, data: undefined };
     const [price, lastPrice, totalAssets, totalSupply, trove, savingsValue, targetCR, minCR, troveRate, rate, ...rest] =
         data;
-    const [shares, maxWithdraw, maxRedeem, maxDeposit, borrowing, lockedProfit, profit, queue, raw, recorded, sleeve] =
-        rest;
+    const [
+        shares,
+        maxWithdraw,
+        maxRedeem,
+        maxDeposit,
+        borrowing,
+        lockedProfit,
+        profit,
+        queue,
+        raw,
+        recorded,
+        sleeve,
+        fee,
+    ] = rest;
     const locked = lockedProfit.result as bigint | undefined;
     const exact = raw.result !== undefined && recorded.result !== undefined;
     const t = trove.result as Trove | undefined;
@@ -148,6 +161,8 @@ export function useVault() {
             sleeve: sleeve.result && sleeve.result !== zeroAddress ? (sleeve.result as Address) : undefined,
             unlockAt: (profit.result as readonly [bigint, bigint, bigint] | undefined)?.[2],
             queue: queue.result as Address | undefined,
+            // v8 takes a share of profit, older vaults take none
+            feeBps: (fee.result as number | undefined) ?? 0,
         },
     };
 }
@@ -318,7 +333,7 @@ export function useSleeve() {
         share: `${bps / 100}%`,
         rungs: rungs
             .filter(([id]) => id !== 0n)
-            .map(([, amount, end]) => ({ amount, end: Number(end) }))
+            .map(([id, amount, end]) => ({ id, amount, end: Number(end) }))
             .sort((a, b) => a.end - b.end),
     };
 }
@@ -368,7 +383,9 @@ export function useYield() {
     const rates = useMainnetRates().data;
     if (!data || !rates) return undefined;
     const { savingsApr, loanRateBps } = rates;
-    return vaultYield({ ...data, savingsApr, troveRateBps: loanRateBps, currentRateBps: loanRateBps });
+    const gross = vaultYield({ ...data, savingsApr, troveRateBps: loanRateBps, currentRateBps: loanRateBps });
+    // The fee comes only out of profit, a loss stays whole
+    return gross > 0 ? gross * (1 - data.feeBps / 10_000) : gross;
 }
 
 /* BTC price */

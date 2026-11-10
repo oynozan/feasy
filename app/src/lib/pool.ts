@@ -4,7 +4,7 @@ import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { parseAbi, zeroAddress, type Address, type Hash } from "viem";
 import { mezoTestnet } from "viem/chains";
 import { usePublicClient, useReadContracts } from "wagmi";
-import { vault, veSleeve, VAULT_FROM_BLOCK } from "./chain";
+import { booster, boostVoter, erc20, savingsSleeve, vault, veMezo, veSleeve, VAULT_FROM_BLOCK } from "./chain";
 import { useSleeve } from "./hooks";
 import { sampleBlocks, WAD, type Trove } from "./math";
 
@@ -35,7 +35,7 @@ const multicall = {
     abi: parseAbi(["function getEthBalance(address addr) view returns (uint256 balance)"]),
 } as const;
 
-const events = [...vault.abi, ...poolAbi].filter((item) => item.type === "event");
+const events = [...vault.abi, ...poolAbi, ...savingsSleeve].filter((item) => item.type === "event");
 
 type Client = NonNullable<ReturnType<typeof usePublicClient>>;
 
@@ -109,6 +109,94 @@ export function usePoolState() {
     };
 }
 
+/* Mezo loop */
+
+export type Borrowing = "on" | "waiting" | "paused" | "off" | "closing";
+
+// v8's spread guard, its sMUSD in Mezo's gauge, the MEZO it earns and the veMEZO boost, undefined before v8
+export function useLoop() {
+    const { data: links } = useReadContracts({
+        contracts: [
+            { ...vault, functionName: "savingsSleeve" },
+            { ...vault, functionName: "borrowingEnabled" },
+            { ...vault, functionName: "closing" },
+            { ...vault, functionName: "feeBps" },
+            { ...vault, functionName: "nextFeeBps" },
+            { ...vault, functionName: "nextFeeAt" },
+        ],
+        query: { refetchInterval: 30_000 },
+    });
+    const at = links?.[0].result;
+    const { data: reads } = useReadContracts({
+        contracts: [
+            { address: at!, abi: savingsSleeve, functionName: "savings" },
+            { address: at!, abi: savingsSleeve, functionName: "savingsRate" },
+            { address: at!, abi: savingsSleeve, functionName: "loanRate" },
+            { address: at!, abi: savingsSleeve, functionName: "spreadOk" },
+            { address: at!, abi: savingsSleeve, functionName: "staked" },
+            { address: at!, abi: savingsSleeve, functionName: "mezoEarned" },
+            { address: at!, abi: savingsSleeve, functionName: "booster" },
+        ],
+        query: { enabled: !!at, refetchInterval: 30_000 },
+    });
+    const smusd = reads?.[0].result;
+    const boostAt = reads?.[6].result;
+    const { data: parts } = useReadContracts({
+        contracts: [
+            { address: smusd!, abi: erc20, functionName: "balanceOf", args: [at!] },
+            { address: smusd!, abi: erc20, functionName: "totalSupply" },
+            { address: boostAt!, abi: booster, functionName: "veMezoId" },
+            { address: boostAt!, abi: booster, functionName: "veMezo" },
+            { address: boostAt!, abi: booster, functionName: "boostVoter" },
+        ],
+        query: { enabled: !!smusd && !!boostAt, refetchInterval: 30_000 },
+    });
+    const sleeve = useSleeve();
+    const id = parts?.[2].result;
+    const voter = parts?.[4].result;
+    const { data: power } = useReadContracts({
+        contracts: [
+            { address: parts?.[3].result, abi: veMezo, functionName: "votingPowerOfNFT", args: [id] },
+            ...(sleeve?.rungs ?? []).map((rung) => ({
+                address: voter,
+                abi: boostVoter,
+                functionName: "getBoost",
+                args: [rung.id],
+            })),
+        ] as never,
+        query: { enabled: id !== undefined && !!voter && !!sleeve, refetchInterval: 60_000 },
+    });
+    if (!at || !links || !reads || !parts || !power) return undefined;
+
+    const [, enabled, closing, feeBps, nextFeeBps, nextFeeAt] = links.map((r) => r.result);
+    const [, savingsRate, loanRate, spreadOk, staked, mezoEarned] = reads.map((r) => r.result);
+    const held = ((parts[0].result as bigint | undefined) ?? 0n) + ((staked as bigint | undefined) ?? 0n);
+    const supply = parts[1].result as bigint | undefined;
+    const results = power as { result?: bigint }[];
+    const borrowing: Borrowing = closing
+        ? "closing"
+        : !enabled
+          ? "off"
+          : savingsRate === 0n
+            ? "waiting"
+            : spreadOk
+              ? "on"
+              : "paused";
+    return {
+        borrowing,
+        savingsRate: Number(savingsRate ?? 0n),
+        loanRate: Number(loanRate ?? 0n),
+        smusdShare: supply ? Number((held * 1_000_000n) / supply) / 1e6 : 0,
+        stakedShare: held > 0n ? Number(((staked as bigint) * 10_000n) / held) / 1e4 : undefined,
+        mezoPending: (mezoEarned as bigint | undefined) ?? 0n,
+        veMezo: id ? (results[0].result ?? 0n) : 0n,
+        boosts: results.slice(1).map((r) => Number(r.result ?? 0n) / 1e18),
+        fee: Number(feeBps ?? 0),
+        nextFee: Number(nextFeeBps ?? 0),
+        nextFeeAt: Number(nextFeeAt ?? 0n),
+    };
+}
+
 /* History */
 
 type Stamp = { id: string; time: number; hash: Hash };
@@ -116,7 +204,7 @@ type Stamp = { id: string; time: number; hash: Hash };
 export type PoolEvent = Stamp &
     (
         | { kind: "deposit" | "withdraw"; owner: Address; assets: bigint }
-        | { kind: "harvest" | "shortfall" | "collateral"; btc: bigint }
+        | { kind: "harvest" | "mezo" | "shortfall" | "collateral"; btc: bigint }
         | { kind: "open" | "borrow" | "repay" | "close"; musd: bigint }
     );
 
@@ -133,10 +221,14 @@ export function usePoolHistory() {
         // Each run re-reads every log and sample, a transaction invalidates it sooner anyway
         refetchInterval: 10 * 60_000,
         queryFn: async () => {
-            const [latest, { surplusPool }] = await Promise.all([
+            const [latest, { surplusPool }, savingsAt, feeTo] = await Promise.all([
                 client!.getBlock(),
                 queryClient.ensureQueryData(linksQuery(client)),
+                client!.readContract({ ...vault, functionName: "savingsSleeve" }).catch(() => undefined),
+                client!.readContract({ ...vault, functionName: "feeRecipient" }).catch(() => undefined),
             ]);
+            // v8 sells the MEZO its sMUSD earns from the savings sleeve, so those sales list with the vault's events
+            const sources = savingsAt ? [vault.address, savingsAt] : [vault.address];
             const ranges: [bigint, bigint][] = [];
             for (let from = VAULT_FROM_BLOCK; from <= latest.number; from += LOG_RANGE) {
                 const to = from + LOG_RANGE - 1n;
@@ -145,7 +237,7 @@ export function usePoolHistory() {
             const logs = (
                 await Promise.all(
                     ranges.map(([fromBlock, toBlock]) =>
-                        client!.getLogs({ address: vault.address, events, fromBlock, toBlock, strict: true }),
+                        client!.getLogs({ address: sources, events, fromBlock, toBlock, strict: true }),
                     ),
                 )
             ).flat();
@@ -162,6 +254,8 @@ export function usePoolHistory() {
             // v6 escrows queued shares at its queue, which holds them for others rather than depositing
             const queue = await client!.readContract({ ...vault, functionName: "queue" }).catch(() => undefined);
             if (queue) holders.delete(queue.toLowerCase());
+            // v8 mints its fee as shares to the booster, which is the protocol and not a depositor
+            if (feeTo) holders.delete(feeTo.toLowerCase());
             const depositors = [...holders.values()].filter((shares) => shares > 0n).length;
 
             // Before the first deposit the pool holds nothing, a zero there would flatten the chart
@@ -237,6 +331,7 @@ export function usePoolHistory() {
                 logs.filter((log) => log.eventName === "TroveClosed").map((log) => log.transactionHash),
             );
             const activity: PoolEvent[] = [];
+            let mezoHarvested = 0n;
             for (const log of logs) {
                 const stamp = {
                     id: `${log.transactionHash}-${log.logIndex}`,
@@ -248,6 +343,9 @@ export function usePoolHistory() {
                     activity.push({ ...stamp, kind, owner: log.args.owner, assets: log.args.assets });
                 } else if (log.eventName === "Harvested") {
                     activity.push({ ...stamp, kind: "harvest", btc: log.args.btcOut });
+                } else if (log.eventName === "MezoHarvested") {
+                    mezoHarvested += log.args.mezoIn;
+                    if (log.args.btcOut > 0n) activity.push({ ...stamp, kind: "mezo", btc: log.args.btcOut });
                 } else if (log.eventName === "ShortfallBought") {
                     activity.push({ ...stamp, kind: "shortfall", btc: log.args.btcIn });
                 } else if (log.eventName === "TroveClosed") {
@@ -266,7 +364,7 @@ export function usePoolHistory() {
             }
             activity.reverse();
 
-            return { activity, samples, depositors, launch: times.get(VAULT_FROM_BLOCK)! };
+            return { activity, samples, depositors, mezoHarvested, launch: times.get(VAULT_FROM_BLOCK)! };
         },
     });
 }

@@ -36,6 +36,12 @@ export const vault = {
         "function sleeve() view returns (address)",
         "function rawAssets() view returns (uint256)",
         "function recorded() view returns (uint256)",
+        "function savingsSleeve() view returns (address)",
+        "function feeBps() view returns (uint16)",
+        "function nextFeeBps() view returns (uint16)",
+        "function nextFeeAt() view returns (uint64)",
+        "function feeRecipient() view returns (address)",
+        "function closing() view returns (bool)",
         "function depositBTC(address receiver) payable returns (uint256)",
         "function withdraw(uint256 assets, address receiver, address owner) returns (uint256)",
         "function redeem(uint256 shares, address receiver, address owner) returns (uint256)",
@@ -114,3 +120,30 @@ export const veSleeve = parseAbi([
     "function sleeveBps() view returns (uint16)",
     "function rungs(uint256 i) view returns (uint256 id, uint128 amount, uint64 end)",
 ]);
+
+// v8 keeps the borrowed MUSD here as sMUSD and stakes part of it in Mezo's sMUSD gauge for MEZO, at vault.savingsSleeve()
+export const savingsSleeve = parseAbi([
+    "function savings() view returns (address)",
+    "function savingsRate() view returns (uint256)",
+    "function loanRate() view returns (uint256)",
+    "function spreadOk() view returns (bool)",
+    "function staked() view returns (uint256)",
+    "function mezoEarned() view returns (uint256)",
+    "function booster() view returns (address)",
+    "event MezoHarvested(uint256 mezoIn, uint256 btcOut)",
+]);
+
+// Holds the fee shares and the veMEZO that boosts the pool's own veBTC locks
+export const booster = parseAbi([
+    "function veMezoId() view returns (uint256)",
+    "function veMezo() view returns (address)",
+    "function boostVoter() view returns (address)",
+]);
+
+export const erc20 = parseAbi([
+    "function balanceOf(address) view returns (uint256)",
+    "function totalSupply() view returns (uint256)",
+]);
+export const veMezo = parseAbi(["function votingPowerOfNFT(uint256 tokenId) view returns (uint256)"]);
+// A boost of 1e18 is 1x
+export const boostVoter = parseAbi(["function getBoost(uint256 tokenId) view returns (uint256)"]);

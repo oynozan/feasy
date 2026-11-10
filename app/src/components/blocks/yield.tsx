@@ -13,15 +13,16 @@ import { Block, BlockHeader, BlockLabel, Reveal } from "../block";
 
 const figure = "font-heading text-[34px] leading-none font-bold tracking-[-0.03em] whitespace-nowrap tabular-nums";
 
-// What the yield means for where the loan stands
-export function yieldTip(state: LoanState | undefined) {
+// What the yield means for where the loan stands, and that it is already net of the fee
+export function yieldTip(state: LoanState | undefined, feeBps = 0) {
     if (state === "off") {
         return "The pool isn’t borrowing right now, so its BTC sits idle and earns nothing. The yield starts once borrowing is turned on.";
     }
+    const fee = feeBps > 0 ? ` That is after Feasy keeps ${feeBps / 100}% of the profit.` : "";
     if (state === "paused") {
-        return "Borrowing is paused, so the pool won’t borrow more, but what it already saved keeps earning. At Mezo mainnet’s rates from the last 12 weeks, a year in the pool adds this much to your BTC.";
+        return `Borrowing is paused, so the pool won’t borrow more, but what it already saved keeps earning. At Mezo mainnet’s rates from the last 12 weeks, a year in the pool adds this much to your BTC.${fee}`;
     }
-    return "Worked out from Mezo mainnet’s savings and loan rates over the last 12 weeks, since testnet’s are made up. If they hold, a year in the pool adds this much to your BTC.";
+    return `Worked out from Mezo mainnet’s savings and loan rates over the last 12 weeks, since testnet’s are made up. If they hold, a year in the pool adds this much to your BTC.${fee}`;
 }
 
 export function Yield() {
@@ -30,7 +31,9 @@ export function Yield() {
     return (
         <Block>
             <BlockHeader>
-                <BlockLabel tip={yieldTip(data && loanState(data.trove, data.borrowing))}>Yearly yield</BlockLabel>
+                <BlockLabel tip={yieldTip(data && loanState(data.trove, data.borrowing), data?.feeBps)}>
+                    Yearly yield
+                </BlockLabel>
             </BlockHeader>
             <div className="mt-auto flex h-12 items-center">
                 <Reveal ready={value !== undefined} placeholder={<Skeleton className="h-9 w-36" />}>

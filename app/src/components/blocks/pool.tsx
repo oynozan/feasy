@@ -8,6 +8,7 @@ import {
     ArrowTrendingUpIcon,
     ArrowUpIcon,
     BanknotesIcon,
+    BoltIcon,
     CheckIcon,
     ReceiptPercentIcon,
     ScaleIcon,
@@ -17,10 +18,10 @@ import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EXPLORER } from "@/lib/chain";
 import { smoothPath } from "@/lib/chart-path";
-import { useMainnetRates, useSleeve, useVault, useYield } from "@/lib/hooks";
+import { useSleeve, useVault, useYield } from "@/lib/hooks";
 import { btcParts, formatBtc, LIQUIDATION_CR, loanState, priceAtRatio, ratioOf, WAD } from "@/lib/math";
 import { flow, pop, rise, springy } from "@/lib/motion";
-import { usePoolHistory, usePoolState, type PoolEvent, type PoolSample } from "@/lib/pool";
+import { useLoop, usePoolHistory, usePoolState, type Borrowing, type PoolEvent, type PoolSample } from "@/lib/pool";
 import { cn } from "@/lib/utils";
 import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Reveal } from "../block";
 import { Wordmark } from "../frame";
@@ -76,8 +77,8 @@ export function PoolView() {
                 <SinceLaunch launch={history?.launch} sample={sample} />
                 <YearlyYield />
                 <LoanHealth />
-                <Savings />
-                <PoolActivity activity={history?.activity} depositors={history?.depositors} failed={failed} />
+                <Depositors depositors={history?.depositors} failed={failed} />
+                <Ledger activity={history?.activity} mezoHarvested={history?.mezoHarvested} failed={failed} />
             </div>
         </div>
     );
@@ -445,7 +446,7 @@ function YearlyYield() {
     return (
         <Tile
             label="Yearly yield"
-            tip={yieldTip(data && loanState(data.trove, data.borrowing))}
+            tip={yieldTip(data && loanState(data.trove, data.borrowing), data?.feeBps)}
             ready={value !== undefined}
             placeholder={<Skeleton className="h-9 w-36" />}
         >
@@ -542,26 +543,15 @@ function Meter({
     );
 }
 
-function Savings() {
-    const { data } = useVault();
-    const { gasComp } = usePoolState();
-    const rates = useMainnetRates().data;
-    // The trove's debt counts a gas deposit Mezo hands back on close, so the pool owes that much less
-    const tip =
-        data?.trove.active && rates && gasComp !== undefined
-            ? `The pool owes ${whole.format(Number(data.trove.debt - gasComp) / 1e18)} MUSD on its loan and keeps the borrowed dollars in Mezo’s savings vault. On mainnet those savings paid ${percent(rates.savingsApr, 2)} a year over the last 12 weeks, while a loan costs ${percent(rates.loanRateBps / 1e4, 2)}.`
-            : "The dollars the pool borrows wait in Mezo’s savings vault, earning more than the loan costs.";
-
+function Depositors({ depositors, failed }: { depositors: number | undefined; failed: boolean }) {
     return (
-        <Tile label="Savings" tip={tip} ready={!!data} placeholder={<Skeleton className="h-9 w-40" />}>
-            <p className={figure}>
-                <NumberFlow
-                    {...flow}
-                    value={Number(data?.savings ?? 0n) / 1e18}
-                    format={{ maximumFractionDigits: 0 }}
-                />
-                <span className="ml-2 text-[18px] tracking-normal text-muted-foreground">MUSD</span>
-            </p>
+        <Tile
+            label="Depositors"
+            tip="Wallets with BTC in the pool right now."
+            ready={depositors !== undefined || failed}
+            placeholder={<Skeleton className="h-9 w-16" />}
+        >
+            <p className={figure}>{failed ? "—" : <NumberFlow {...flow} value={depositors ?? 0} />}</p>
         </Tile>
     );
 }
@@ -572,6 +562,7 @@ const kinds = {
     deposit: { title: "Deposit", icon: ArrowDownIcon },
     withdraw: { title: "Withdrawal", icon: ArrowUpIcon },
     harvest: { title: "Savings income", icon: SparklesIcon },
+    mezo: { title: "MEZO income", icon: BoltIcon },
     shortfall: { title: "Loan cost paid", icon: ReceiptPercentIcon },
     open: { title: "Loan opened", icon: BanknotesIcon },
     borrow: { title: "Borrowed more", icon: ArrowTrendingUpIcon },
@@ -580,72 +571,224 @@ const kinds = {
     collateral: { title: "Collateral added", icon: ScaleIcon },
 } as const;
 
-function PoolActivity({
+type Pane = "activity" | "loop";
+
+const activityTip =
+    "Everyone’s deposits and withdrawals, each change to the pool’s loan, the savings income turned into BTC and the BTC spent on the loan’s fees and interest.";
+
+// The pool's activity, and from v8 on the Mezo loop next to it
+function Ledger({
     activity,
-    depositors,
+    mezoHarvested,
     failed,
 }: {
     activity: PoolEvent[] | undefined;
-    depositors: number | undefined;
+    mezoHarvested: bigint | undefined;
     failed: boolean;
 }) {
-    const [hovered, setHovered] = useState<string | null>(null);
+    const loop = useLoop();
+    const [pane, setPane] = useState<Pane>("activity");
+    // Before v8 there is no loop, so the block stays the activity list
+    const shown = loop ? pane : "activity";
 
     return (
         <Block className="h-[240px] pb-0 sm:col-span-2 lg:h-full">
             <BlockHeader>
-                <BlockLabel tip="Everyone’s deposits and withdrawals, each change to the pool’s loan, the savings income turned into BTC and the BTC spent on the loan’s fees and interest.">
-                    Pool activity
-                </BlockLabel>
-                {!failed && (
-                    <Reveal ready={depositors !== undefined} placeholder={<Skeleton className="h-5 w-24" />}>
-                        <span className="block text-[15px] leading-6 text-muted-foreground tabular-nums">
-                            <NumberFlow
-                                {...flow}
-                                value={depositors ?? 0}
-                                suffix={depositors === 1 ? " depositor" : " depositors"}
-                            />
-                        </span>
-                    </Reveal>
+                {loop ? (
+                    <div className="flex items-center gap-1.5">
+                        <PaneToggle value={shown} onChange={setPane} />
+                        <InfoTip>{shown === "loop" ? loopTip(loop) : activityTip}</InfoTip>
+                    </div>
+                ) : (
+                    <BlockLabel tip={activityTip}>Pool activity</BlockLabel>
                 )}
             </BlockHeader>
             <div className="relative -mx-3 mt-3 min-h-0 flex-1">
                 <div className="absolute inset-0 overflow-y-auto pb-10 [mask-image:linear-gradient(to_bottom,black_calc(100%-40px),transparent)] [scrollbar-width:none]">
-                    <Reveal ready={!!activity || failed} placeholder={<RowsPlaceholder />}>
-                        {!activity || activity.length === 0 ? (
-                            <p className="px-3 text-[15px] leading-6 text-muted-foreground">
-                                {failed ? "Couldn’t load activity" : "No activity yet"}
-                            </p>
-                        ) : (
-                            <ul className="isolate" onPointerLeave={() => setHovered(null)}>
-                                {activity.map((event) => (
-                                    <li key={event.id}>
-                                        <a
-                                            href={`${EXPLORER}/tx/${event.hash}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="relative flex items-center gap-3 rounded-tile px-3 py-2.5 outline-none"
-                                            onPointerEnter={() => setHovered(event.id)}
-                                            onFocus={() => setHovered(event.id)}
-                                            onBlur={() => setHovered(null)}
-                                        >
-                                            {hovered === event.id && (
-                                                <motion.span
-                                                    layoutId="pool-activity-hover"
-                                                    className="absolute inset-0 -z-10 rounded-tile bg-secondary"
-                                                    transition={pop}
-                                                />
-                                            )}
-                                            <Row event={event} />
-                                        </a>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </Reveal>
+                    <AnimatePresence mode="popLayout" initial={false}>
+                        <motion.div
+                            key={shown}
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8, transition: { duration: 0.12 } }}
+                            transition={rise}
+                        >
+                            {shown === "loop" && loop ? (
+                                <LoopList loop={loop} mezoHarvested={mezoHarvested ?? 0n} />
+                            ) : (
+                                <ActivityList activity={activity} failed={failed} />
+                            )}
+                        </motion.div>
+                    </AnimatePresence>
                 </div>
             </div>
         </Block>
+    );
+}
+
+function PaneToggle({ value, onChange }: { value: Pane; onChange: (next: Pane) => void }) {
+    return (
+        <div role="tablist" aria-label="Pool details" className="flex rounded-full bg-secondary p-1">
+            {(["activity", "loop"] as const).map((option) => (
+                <button
+                    key={option}
+                    type="button"
+                    role="tab"
+                    aria-selected={value === option}
+                    onClick={() => onChange(option)}
+                    className={cn(
+                        "relative flex h-7 items-center rounded-full px-3.5 text-[13px] font-medium transition-colors",
+                        value === option ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                >
+                    {value === option && (
+                        <motion.span
+                            layoutId="pool-pane"
+                            className="absolute inset-0 rounded-full bg-card"
+                            transition={springy}
+                        />
+                    )}
+                    <span className="relative">{option === "activity" ? "Activity" : "Mezo loop"}</span>
+                </button>
+            ))}
+        </div>
+    );
+}
+
+function ActivityList({ activity, failed }: { activity: PoolEvent[] | undefined; failed: boolean }) {
+    const [hovered, setHovered] = useState<string | null>(null);
+    return (
+        <Reveal ready={!!activity || failed} placeholder={<RowsPlaceholder />}>
+            {!activity || activity.length === 0 ? (
+                <p className="px-3 text-[15px] leading-6 text-muted-foreground">
+                    {failed ? "Couldn’t load activity" : "No activity yet"}
+                </p>
+            ) : (
+                <ul className="isolate" onPointerLeave={() => setHovered(null)}>
+                    {activity.map((event) => (
+                        <li key={event.id}>
+                            <a
+                                href={`${EXPLORER}/tx/${event.hash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="relative flex items-center gap-3 rounded-tile px-3 py-2.5 outline-none"
+                                onPointerEnter={() => setHovered(event.id)}
+                                onFocus={() => setHovered(event.id)}
+                                onBlur={() => setHovered(null)}
+                            >
+                                {hovered === event.id && (
+                                    <motion.span
+                                        layoutId="pool-activity-hover"
+                                        className="absolute inset-0 -z-10 rounded-tile bg-secondary"
+                                        transition={pop}
+                                    />
+                                )}
+                                <Row event={event} />
+                            </a>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </Reveal>
+    );
+}
+
+/* Mezo loop */
+
+type Loop = NonNullable<ReturnType<typeof useLoop>>;
+
+const borrowingWord: Record<Borrowing, string> = {
+    on: "On",
+    waiting: "Waiting",
+    paused: "Paused",
+    off: "Off",
+    closing: "Closing",
+};
+
+function feeText(loop: Loop) {
+    if (loop.nextFeeAt > 0 && loop.nextFee !== loop.fee)
+        return `${percent(loop.nextFee / 1e4)} from ${day.format(loop.nextFeeAt * 1000)}`;
+    return loop.fee > 0 ? percent(loop.fee / 1e4) : "None";
+}
+
+function loopTip(loop: Loop) {
+    const state = {
+        on: "",
+        waiting: " Borrowing waits for a day of savings history, so the savings rate can be measured first.",
+        paused: " Borrowing is paused because the savings pay less than the loan costs.",
+        off: " Borrowing is turned off.",
+        closing: " Mezo is in Recovery Mode, so the pool is paying its loan down and closes it once Mezo allows.",
+    }[loop.borrowing];
+    const fee =
+        loop.nextFeeAt > 0 && loop.nextFee !== loop.fee
+            ? ` From ${day.format(loop.nextFeeAt * 1000)} Feasy keeps ${percent(loop.nextFee / 1e4)} of the profit, never on a loss or on earning one back.`
+            : loop.fee > 0
+              ? ` Feasy keeps ${percent(loop.fee / 1e4)} of the profit, never on a loss or on earning one back.`
+              : "";
+    return `The pool borrows MUSD against its BTC and keeps it in Mezo’s savings vault as sMUSD, and it only borrows while the savings pay more than the loan costs. Part of the sMUSD is staked in Mezo’s sMUSD gauge, which pays MEZO. The MEZO is sold for BTC or locked as veMEZO, which boosts the pool’s own veBTC locks.${state}${fee}`;
+}
+
+function LoopList({ loop, mezoHarvested }: { loop: Loop; mezoHarvested: bigint }) {
+    const { data } = useVault();
+    const mezo = Number(mezoHarvested + loop.mezoPending) / 1e18;
+    const rate = (bps: number) => (
+        <NumberFlow {...flow} value={bps / 1e4} format={{ style: "percent", maximumFractionDigits: 2 }} />
+    );
+    return (
+        <div className="grid gap-x-8 px-3 text-[15px] leading-7 sm:grid-cols-2">
+            <dl className="grid grid-cols-[1fr_auto] gap-x-3">
+                <Fact label="Borrowing">{borrowingWord[loop.borrowing]}</Fact>
+                <Fact label="Savings rate">{loop.savingsRate > 0 ? rate(loop.savingsRate) : "—"}</Fact>
+                <Fact label="Loan rate">{rate(loop.loanRate)}</Fact>
+                <Fact label="Savings">
+                    <NumberFlow
+                        {...flow}
+                        value={Number(data?.savings ?? 0n) / 1e18}
+                        format={{ maximumFractionDigits: 0 }}
+                        suffix=" MUSD"
+                    />
+                </Fact>
+                <Fact label="Share of sMUSD">
+                    <NumberFlow
+                        {...flow}
+                        value={loop.smusdShare}
+                        format={{ style: "percent", maximumFractionDigits: 2 }}
+                    />
+                </Fact>
+            </dl>
+            <dl className="grid grid-cols-[1fr_auto] gap-x-3">
+                <Fact label="Staked in gauge">
+                    {loop.stakedShare === undefined ? (
+                        "—"
+                    ) : (
+                        <NumberFlow
+                            {...flow}
+                            value={loop.stakedShare}
+                            format={{ style: "percent", maximumFractionDigits: 0 }}
+                        />
+                    )}
+                </Fact>
+                <Fact label="MEZO earned">
+                    <NumberFlow {...flow} value={mezo} format={{ maximumFractionDigits: mezo < 100 ? 2 : 0 }} />
+                </Fact>
+                <Fact label="veMEZO">
+                    <NumberFlow {...flow} value={Number(loop.veMezo) / 1e18} format={{ maximumFractionDigits: 0 }} />
+                </Fact>
+                <Fact label="Boost">
+                    {loop.boosts.length > 0 ? loop.boosts.map((boost) => `${boost.toFixed(2)}×`).join(" · ") : "—"}
+                </Fact>
+                <Fact label="Fee">{feeText(loop)}</Fact>
+            </dl>
+        </div>
+    );
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right font-medium whitespace-nowrap tabular-nums">{children}</dd>
+        </>
     );
 }
 
@@ -657,7 +800,7 @@ function Row({ event }: { event: PoolEvent }) {
             <span
                 className={cn(
                     "grid size-9 shrink-0 place-items-center rounded-full",
-                    event.kind === "harvest" ? "bg-highlight" : "bg-secondary",
+                    event.kind === "harvest" || event.kind === "mezo" ? "bg-highlight" : "bg-secondary",
                 )}
             >
                 <Icon className="size-4" />
@@ -685,6 +828,7 @@ function Amount({ event }: { event: PoolEvent }) {
         case "withdraw":
             return signed(event.kind === "deposit" ? event.assets : -event.assets, btc);
         case "harvest":
+        case "mezo":
             return signed(event.btc, btc);
         case "shortfall":
             return signed(-event.btc, btc);
