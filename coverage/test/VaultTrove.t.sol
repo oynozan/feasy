@@ -181,6 +181,7 @@ contract VaultTroveTest is Base {
             factory = factories[i];
             Vault v = _newVault(7 days);
             v.setBorrowingEnabled(true);
+            _warmUp();
             vm.deal(alice, 2 ether);
             vm.prank(alice);
             v.depositBTC{value: 2 ether}(alice);

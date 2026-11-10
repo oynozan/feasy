@@ -92,6 +92,18 @@ interface ISavings {
 // A paused factory still quotes, but its pools refuse every swap
 interface IPoolFactory {
     function isPaused() external view returns (bool);
+    function getPool(address tokenA, address tokenB, bool stable) external view returns (address);
+}
+
+// Mezo Earn gauge for a vault receipt, stakers earn its reward token and voters get the yield
+interface IStakingGauge {
+    function deposit(uint256 amount) external;
+    function withdraw(uint256 amount) external;
+    function getReward(address account) external;
+    function earned(address account) external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function rewardToken() external view returns (address);
+    function stakingToken() external view returns (address);
 }
 
 interface IRouter {
@@ -125,6 +137,33 @@ interface IVeBTC {
     function increaseAmount(uint256 tokenId, uint256 value) external;
     function withdraw(uint256 tokenId) external;
     function voted(uint256 tokenId) external view returns (bool);
+    function votingPowerOfNFT(uint256 tokenId) external view returns (uint256);
+    function checkpoint() external;
+    function booster() external view returns (address);
+}
+
+// Mezo Earn BoostVoter, veMEZO votes on a veBTC lock's boost gauge to raise its voting power
+interface IBoostVoter {
+    function ve() external view returns (address);
+    function boostableTokenIdToGauge(uint256 tokenId) external view returns (address);
+    function createBoostGauge(
+        address gaugeFactory,
+        uint256 tokenId,
+        address[] memory tokens,
+        uint256[] memory amounts
+    ) external returns (address);
+    function vote(uint256 tokenId, address[] calldata gauges, uint256[] calldata weights)
+        external;
+    function pokeBoost(uint256 tokenId) external;
+    function getBoost(uint256 tokenId) external view returns (uint256);
+}
+
+// Mezo Earn veMEZO, the MEZO locks that vote on boost gauges
+interface IVeMezo {
+    function token() external view returns (address);
+    function createLock(uint256 value, uint256 lockDuration) external returns (uint256);
+    function increaseAmount(uint256 tokenId, uint256 value) external;
+    function lockPermanent(uint256 tokenId) external;
     function votingPowerOfNFT(uint256 tokenId) external view returns (uint256);
 }
 

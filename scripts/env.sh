@@ -41,6 +41,9 @@ else
     PCV=0x4dDD70f4C603b6089c07875Be02fEdFD626b80Af
     SMUSD=0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16
     VOTER=0x263F1Fd5fB7F866881e1B6cD7d5d6c40Fd985F0D
+    MEZO=0x7B7c000000000000000000000000000000000001
+    # The registry's factory that builds BoostVoter's non-staking gauges
+    BOOST_GAUGE_FACTORY=0x2c015840d034fe74bea8c62dd00a11e3aa338ad5
     VAULT_FILE="$ROOT/deployments/testnet.env"
     LOG="${LOG:-$ROOT/deployments/testnet-log.md}"
 fi
@@ -48,6 +51,8 @@ fi
 [ -z "${VAULT:-}" ] && [ -f "$VAULT_FILE" ] && source "$VAULT_FILE"
 # Upkeep signs with the keeper key on the live vault, staging vaults keep the deployer as keeper
 [ -z "${STAGING:-}" ] && KEEPER_KEY="${KEEPER_PK:-$DEPLOYER_PK}" || KEEPER_KEY="$DEPLOYER_PK"
+# A vault whose keeper is still the deployer is kept from this machine, away from the Action's key
+if [ "${KEEPER_ROLE:-}" = deployer ]; then KEEPER_KEY="$DEPLOYER_PK"; fi
 
 # send <private key> <to> <signature> [args...] [cast flags], logs the explorer link
 # Mezo's gas estimate can undershoot precompile calls, and it bills max(used, limit / 2), so pad by half

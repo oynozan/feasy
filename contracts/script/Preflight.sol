@@ -21,12 +21,14 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Vault} from "../src/Vault.sol";
 import {RedeemQueue} from "../src/RedeemQueue.sol";
 import {VeSleeve} from "../src/VeSleeve.sol";
+import {SavingsSleeve} from "../src/SavingsSleeve.sol";
 import {
     IBorrowerOperations,
     IHintHelpers,
     ISavings,
     IRouter,
-    IVoter
+    IVoter,
+    ITroveManager
 } from "../src/interfaces/IMezo.sol";
 
 interface IVeLike {
@@ -41,6 +43,43 @@ interface IDistributorLike {
 
 interface ISavingsYield {
     function receiveProtocolYield(uint256 amount) external;
+}
+
+// Created only to learn the harness's next creation nonce
+contract Probe {}
+
+// A savings sleeve whose first snapshot is a real sMUSD index read a week back by preflight.py
+contract SeededSavingsSleeve is SavingsSleeve {
+    constructor(address vault_, IVoter voter, uint256 index, uint256 time)
+        SavingsSleeve(
+            vault_,
+            ISavings(0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16),
+            IERC20(0x7b7C000000000000000000000000000000000000),
+            IBorrowerOperations(0xCdF7028ceAB81fA0C6971208e83fa7872994beE5),
+            voter,
+            IRouter(0x9a1ff7FE3a0F69959A3fBa1F1e5ee18e1A9CD7E9),
+            0x4947243CC818b627A5D06d14C4eCe7398A23Ce1A
+        )
+    {
+        if (time > 0) snapshots[0] = Snapshot(uint192(index), uint64(time));
+    }
+}
+
+// Stands in for the oracle only in the Recovery Mode simulation, preflight.py points PriceFeed here
+contract SimOracle {
+    int256 public answer;
+
+    function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
+        return (0, answer, 0, block.timestamp, 0);
+    }
+
+    function decimals() external pure returns (uint8) {
+        return 18;
+    }
+
+    function set(int256 answer_) external {
+        answer = answer_;
+    }
 }
 
 contract User {
@@ -68,14 +107,26 @@ contract Preflight {
     uint256 constant UNFILLABLE = 100;
     uint256 constant ALT = 1 << 128;
 
+    // Recovery Mode simulation only, PriceFeed reads this address instead of the oracle precompile
+    address constant SIM_ORACLE = 0xFEA5000000000000000000000000000000000003;
+
     error StepFailed(string step, bytes reason);
 
+    // Slots 0 and 1, preflight.py writes sMUSD's index and time from a week back here
+    uint256 seedIndex;
+    uint256 seedTime;
     Vault vault;
+    // Only the veBTC and gauge scenarios deploy the sleeves, the rest stay inside the RPC's 25M call gas
+    bool withSleeves;
     string[] labels;
     uint256[] values;
     bool alt;
 
     function deploy() external {
+        // The vault has to land where its savings sleeve expects it, two creations after a probe
+        address predicted = _createdAfter(address(new Probe()), 2);
+        IVoter voter = withSleeves ? IVoter(VOTER) : IVoter(address(0));
+        SavingsSleeve savingsSleeve = new SeededSavingsSleeve(predicted, voter, seedIndex, seedTime);
         vault = new Vault(
             IERC20(BTC),
             IBorrowerOperations(BORROWER_OPS),
@@ -86,7 +137,8 @@ contract Preflight {
             address(this),
             address(this),
             7 days,
-            IVoter(VOTER),
+            voter,
+            savingsSleeve,
             "Feasy BTC",
             "fBTC"
         );
@@ -94,9 +146,25 @@ contract Preflight {
         vault.setBorrowingEnabled(true);
     }
 
+    // The address that creation number k after probe gets, the harness nonce is found from probe
+    function _createdAfter(address probe, uint256 k) internal view returns (address) {
+        for (uint256 n; n < 0x7f; n++) {
+            if (_createAddress(n) == probe) return _createAddress(n + k);
+        }
+        revert StepFailed("nonce", "");
+    }
+
+    function _createAddress(uint256 nonce) internal view returns (address) {
+        bytes memory rlp = nonce == 0
+            ? abi.encodePacked(bytes2(0xd694), address(this), bytes1(0x80))
+            : abi.encodePacked(bytes2(0xd694), address(this), uint8(nonce));
+        return address(uint160(uint256(keccak256(rlp))));
+    }
+
     function scenario(uint256 id) external returns (string[] memory, uint256[] memory) {
         alt = id >= ALT;
         id %= ALT;
+        withSleeves = id == 41 || id == 42 || id == 46;
         _step("deploy", address(this), abi.encodeCall(this.deploy, ()), 0);
         if (id == 0) {
             _open(0.2 ether, FILLABLE);
@@ -231,8 +299,116 @@ contract Preflight {
             return _rollBudget();
         } else if (id == 42) {
             return _rebateClaim();
+        } else if (id == 43) {
+            return _recoveryUnwind();
+        } else if (id == 44) {
+            return _spreadGuard();
+        } else if (id == 45) {
+            return _fee();
+        } else if (id == 46) {
+            return _gaugeStake();
         }
         return _finish(id, true);
+    }
+
+    // Simulated price only, Mezo's own system ratio decides Recovery Mode and refuses the close
+    function _recoveryUnwind() internal returns (string[] memory, uint256[] memory) {
+        _open(0.2 ether, FILLABLE);
+        ITroveManager tm = vault.troveManager();
+        uint256 live = vault.lastPrice();
+        // Just under the price where the whole system's ratio meets CCR
+        uint256 rm = Math.mulDiv(tm.CCR(), tm.getEntireSystemDebt(), tm.getEntireSystemColl()) * 99
+            / 100;
+        _step("price falls into Recovery Mode", SIM_ORACLE, abi.encodeCall(SimOracle.set, (int256(rm))), 0);
+        _expect(tm.checkRecoveryMode(rm), "Mezo is in Recovery Mode at the simulated price");
+        _push("simulated price", rm);
+        _push("live price", live);
+        _step("guardian unwinds in Recovery Mode", address(vault), abi.encodeCall(Vault.unwind, ()), 0);
+        Vault.Trove memory t = vault.trove();
+        uint256 minDebt = vault.borrowerOperations().minNetDebt() + 200e18;
+        _snap("unwind repaid to the minimum loan", false);
+        _expect(vault.closing() && t.active, "the trove stays open and closing is set");
+        _expect(t.debt <= minDebt + 1e15, "debt is down to the minimum loan");
+        _step("rebalance still in Recovery Mode", address(vault), abi.encodeCall(Vault.rebalance, ()), 0);
+        _expect(vault.closing() && vault.trove().active, "closing waits while Mezo refuses the close");
+        _step("price recovers", SIM_ORACLE, abi.encodeCall(SimOracle.set, (int256(live))), 0);
+        _step("rebalance finishes the close", address(vault), abi.encodeCall(Vault.rebalance, ()), 0);
+        _expect(!vault.closing() && !vault.trove().active, "the close went through and closing cleared");
+        _step("holder redeems the max", address(vault), _redeem(vault.maxRedeem(address(this))), 0);
+        uint256 savingsBtc = Math.mulDiv(vault.savingsValue(), 1e18, live);
+        uint256 left = vault.convertToAssets(vault.balanceOf(address(this)));
+        _push("savings left after the close", vault.savingsValue());
+        _push("value left in BTC", left);
+        _expect(left <= savingsBtc * 11 / 10, "only the savings that wait for a harvest stay behind");
+        _snap("after the full exit", false);
+        return _done();
+    }
+
+    // The guard reads the real sMUSD rate since the seeded snapshot against Mezo's real loan rate
+    function _spreadGuard() internal returns (string[] memory, uint256[] memory) {
+        SavingsSleeve ss = vault.savingsSleeve();
+        uint256 rate = ss.savingsRate();
+        _push("savings rate bps", rate);
+        _push("loan rate bps", ss.loanRate());
+        _expect(ss.spreadOk(), "today's spread allows borrowing");
+        _step(
+            "minimum spread above today's",
+            address(ss),
+            abi.encodeCall(SavingsSleeve.setMinSpread, (uint16(Math.min(rate, 65_535)))),
+            0
+        );
+        _params(2e18, 2.5e18, 3e18, FILLABLE);
+        _deposit(0.2 ether);
+        _step("rebalance with a thin spread", address(vault), abi.encodeCall(Vault.rebalance, ()), 0);
+        _expect(!vault.trove().active, "no loan opens while the spread is too thin");
+        _step(
+            "minimum spread back to zero",
+            address(ss),
+            abi.encodeCall(SavingsSleeve.setMinSpread, (uint16(0))),
+            0
+        );
+        _step("rebalance with today's spread", address(vault), abi.encodeCall(Vault.rebalance, ()), 0);
+        _expect(vault.trove().active, "the loan opens once the spread clears the bar");
+        _snap("opened", false);
+        return _done();
+    }
+
+    // A fee rise waits 30 days, so a gain made in the meantime pays no fee
+    function _fee() internal returns (string[] memory, uint256[] memory) {
+        User treasury = new User();
+        _step(
+            "fee rise to 10%",
+            address(vault),
+            abi.encodeCall(Vault.setFee, (uint16(1000), address(treasury))),
+            0
+        );
+        _push("fee bps", vault.feeBps());
+        _push("next fee bps", vault.nextFeeBps());
+        _push("days until the rise", (vault.nextFeeAt() - block.timestamp) / 1 days);
+        _expect(vault.feeBps() == 0 && vault.nextFeeBps() == 1000, "the rise is pending, not applied");
+        _expect(vault.nextFeeAt() == block.timestamp + 30 days, "it applies 30 days from now");
+        _open(0.2 ether, FILLABLE);
+        // A BTC gain the vault did not cause
+        _donate(0.002 ether);
+        _step("sync", address(vault), abi.encodeCall(Vault.sync, ()), 0);
+        _push("profit unlocking to holders", vault.lockedProfit());
+        _expect(vault.balanceOf(address(treasury)) == 0, "no fee shares while the rise waits");
+        _expect(vault.lockedProfit() >= 0.0019 ether, "the whole gain, less drift, unlocks to holders");
+        return _done();
+    }
+
+    // The savings sleeve stakes half its sMUSD in Mezo's live sMUSD gauge, then an exit unstakes
+    function _gaugeStake() internal returns (string[] memory, uint256[] memory) {
+        SavingsSleeve ss = vault.savingsSleeve();
+        _step("stake half", address(ss), abi.encodeCall(SavingsSleeve.setStake, (uint16(5000))), 0);
+        _open(0.2 ether, FILLABLE);
+        _push("staked sMUSD", ss.staked());
+        _push("savings value", vault.savingsValue());
+        _expect(ss.staked() > 0, "half the sMUSD sits in the live gauge");
+        _step("redeem everything", address(vault), _redeem(vault.maxRedeem(address(this))), 0);
+        _push("staked after the exit", ss.staked());
+        _expect(!vault.trove().active, "the exit closed the loan through staked sMUSD");
+        return _done();
     }
 
     // A sniper deposits just before an sMUSD payout and redeems right after it
@@ -303,7 +479,7 @@ contract Preflight {
         uint256 before = vault.totalAssets();
         _donate(0.01 ether);
         uint256 total = vault.totalAssets();
-        uint256 pending = vault.pendingProfit();
+        uint256 pending = Math.saturatingSub(vault.rawAssets(), vault.recorded());
         _step("sync", address(vault), abi.encodeCall(Vault.sync, ()), 0);
         (,, uint64 unlockAt) = vault.profit();
         uint256 locked = vault.lockedProfit();
@@ -861,7 +1037,7 @@ contract Preflight {
         _payout(8000e18);
         _snap("end", false);
         uint256 total = vault.totalAssets();
-        uint256 pending = vault.pendingProfit();
+        uint256 pending = Math.saturatingSub(vault.rawAssets(), vault.recorded());
         _step("sync", address(vault), abi.encodeCall(Vault.sync, ()), 0);
         uint256 locked = vault.lockedProfit();
         uint256 synced = vault.totalAssets();

@@ -32,6 +32,17 @@ pragma solidity 0.8.28;
  * the sMUSD gauge and earn its MUSD fees. Locked BTC counts at face value but
  * is not liquid, so exits beyond the liquid part wait for the next roll.
  *
+ * The sMUSD sits in the SavingsSleeve, which stakes a share in the sMUSD gauge
+ * for MEZO and measures the realized savings rate. New debt is taken only while
+ * that rate beats the loan rate. A performance fee of feeBps comes out of each
+ * gain at its checkpoint once earlier losses are won back, before the rest
+ * starts unlocking to holders. Those losses are kept per share, so deposits
+ * and exits never erase or create them.
+ *
+ * unwind closes the loan, and when Mezo refuses a close in Recovery Mode it
+ * repays down to the minimum loan and leaves closing set, so the first
+ * rebalance after Recovery Mode finishes the close.
+ *
  * Mezo allows 20 precompile calls per transaction and the oracle behind
  * PriceFeed.fetchPrice costs two, so every entry point reads the price once
  * into a State snapshot and passes it down.
@@ -45,6 +56,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ProfitLock} from "./ProfitLock.sol";
 import {RedeemQueue} from "./RedeemQueue.sol";
 import {VeSleeve} from "./VeSleeve.sol";
+import {SavingsSleeve} from "./SavingsSleeve.sol";
 import {SystemMath} from "./SystemMath.sol";
 import {
     IBorrowerOperations,
@@ -96,6 +108,9 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
     uint256 private constant MIN_RUNG = 1e14;
     // Two new rungs measured just under 2M gas on testnet, a lock gets this fixed budget
     uint256 private constant LOCK_GAS = 3_000_000;
+    uint256 private constant MAX_FEE_BPS = 2000;
+    // Longer than the 4 weeks a veBTC lock can hold an exit, so every holder can leave before a rise
+    uint256 private constant FEE_DELAY = 30 days;
 
     IBorrowerOperations public immutable borrowerOperations;
     ITroveManager public immutable troveManager;
@@ -105,7 +120,7 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
     ICollSurplusPool public immutable collSurplusPool;
     IInterestRateManager public immutable interestRateManager;
     IERC20 public immutable musd;
-    ISavings public immutable savings;
+    SavingsSleeve public immutable savingsSleeve;
     IRouter public immutable router;
     address public immutable poolFactory;
     address private immutable activePool;
@@ -131,6 +146,14 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
     // Raw assets at the last checkpoint, plus deposits and minus exits since
     uint256 public recorded;
     ProfitLock.Profit public profit;
+    uint16 public feeBps;
+    uint16 public nextFeeBps;
+    uint64 public nextFeeAt;
+    address public feeRecipient;
+    // BTC lost and not yet won back, scaled with supply so it stays the same per share
+    uint256 public deficit;
+    // Set while a Recovery Mode unwind waits for Mezo to allow the close
+    bool public closing;
 
     event Rebalanced(uint256 coll, uint256 debt, uint256 savings);
     event Harvested(uint256 musdIn, uint256 btcOut);
@@ -138,17 +161,12 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
     event TroveClosed();
     event KeeperSet(address keeper);
     event BorrowingSet(bool enabled);
-    event ParamsSet(
-        uint256 minCR,
-        uint256 targetCR,
-        uint256 maxCR,
-        uint256 bufferBps,
-        uint256 slippageBps,
-        uint16 maxBorrowRate,
-        uint256 depositCap
-    );
+    // The values are in the call and in the timelock's own events
+    event ParamsSet();
     event GuardianSet(address indexed previousGuardian, address indexed newGuardian);
     event ProfitLocked(uint256 gain, uint256 locked, uint256 unlockAt);
+    event FeeTaken(uint256 shares, uint256 assets);
+    event FeeSet(uint16 feeBps, address recipient);
 
     error NotKeeper();
     error NotMezo();
@@ -171,10 +189,16 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         address guardian_,
         uint256 unlockPeriod_,
         IVoter voter_,
+        SavingsSleeve savingsSleeve_,
         string memory name_,
         string memory symbol_
     ) ERC20(name_, symbol_) ERC4626(btc) Ownable(msg.sender) {
-        if (unlockPeriod_ == 0 || unlockPeriod_ > MAX_UNLOCK_PERIOD) revert BadParams();
+        // Deployed first at this vault's address, so the vault's own code stays under the size limit
+        if (
+            unlockPeriod_ == 0 || unlockPeriod_ > MAX_UNLOCK_PERIOD
+                || savingsSleeve_.vault() != address(this)
+                || address(savingsSleeve_.savings()) != address(savings_)
+        ) revert BadParams();
         borrowerOperations = borrowerOperations_;
         troveManager = ITroveManager(borrowerOperations_.troveManager());
         priceFeed = IPriceFeed(borrowerOperations_.priceFeed());
@@ -185,7 +209,7 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         activePool = borrowerOperations_.activePool();
         gasComp = borrowerOperations_.MUSD_GAS_COMPENSATION();
         hintHelpers = hintHelpers_;
-        savings = savings_;
+        savingsSleeve = savingsSleeve_;
         router = router_;
         poolFactory = poolFactory_;
         keeper = keeper_;
@@ -360,20 +384,13 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         return ProfitLock.remaining(profit, block.timestamp);
     }
 
-    // Gains since the last checkpoint, hidden from the share price until the next one
-    function pendingProfit() external view returns (uint256) {
-        return _rawView().saturatingSub(recorded);
-    }
-
     // Everything the vault holds before the unlock, so a loss the next checkpoint nets shows at once
     function rawAssets() external view returns (uint256) {
         return _rawView();
     }
 
     function savingsValue() public view returns (uint256) {
-        uint256 principal = savings.balanceOf(address(this));
-        uint256 index = savings.yieldIndex() - savings.supplyYieldIndex(address(this));
-        return principal + savings.claimableYield(address(this)) + principal * index / 1e18;
+        return savingsSleeve.value();
     }
 
     function trove() public view returns (Trove memory t) {
@@ -433,8 +450,20 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
     function _checkpoint(uint256 raw) internal returns (uint256) {
         (ProfitLock.Profit memory p, uint256 gain) =
             ProfitLock.checkpoint(profit, recorded, raw, block.timestamp, unlockPeriod);
+        _applyFee();
+        // A gain first wins back earlier losses, only the rest takes a fee
+        uint256 covered = Math.min(gain, deficit);
+        deficit = deficit + recorded.saturatingSub(raw) - covered;
+        uint256 fee = totalSupply() == 0 ? 0 : (gain - covered).mulDiv(feeBps, BPS);
+        p.locked -= uint128(fee);
         profit = p;
         recorded = raw;
+        if (fee > 0) {
+            // Priced on raw assets, so the fee shares take no part of profit still unlocking
+            uint256 shares = _toShares(fee, raw - fee, Math.Rounding.Floor);
+            _mint(feeRecipient, shares);
+            emit FeeTaken(shares, fee);
+        }
         if (gain > 0) emit ProfitLocked(gain, p.locked, p.unlockAt);
         return raw - p.locked;
     }
@@ -480,22 +509,11 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         return Math.max(_minDebt(), s.trove.debt.saturatingSub(s.held));
     }
 
-    // A paused factory still quotes, but its pools refuse every swap
     function _canBuy(uint256 musdAmount, uint256 price) internal view returns (bool) {
-        try IPoolFactory(poolFactory).isPaused() returns (bool paused) {
-            if (paused) return false;
-        } catch {
-            return false;
-        }
-        try router.getAmountsOut(
-            _btcCost(musdAmount, price), _route(asset(), address(musd))
-        ) returns (
-            uint256[] memory amounts
-        ) {
-            return amounts[amounts.length - 1] >= musdAmount;
-        } catch {
-            return false;
-        }
+        return SystemMath.canBuy(
+            IPoolFactory(poolFactory), router, asset(), address(musd), _btcCost(musdAmount, price),
+            musdAmount
+        );
     }
 
     function _maxWithdraw(address owner, State memory s, uint256 total)
@@ -641,7 +659,18 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         }
         Trove memory t = s.trove;
 
-        if (!t.active) {
+        if (closing) {
+            // The unwind finishes on the first rebalance Mezo allows the close, spare BTC waits idle
+            uint256 owed = t.active ? t.debt - gasComp : 0;
+            if (
+                !t.active
+                    || (!recovery && _systemAllowsExit(t, s.price)
+                        && (s.held >= owed || _canBuy(owed - s.held, s.price)))
+            ) {
+                if (t.active) _closeTrove(t, s.price);
+                closing = false;
+            }
+        } else if (!t.active) {
             // Opening needs room above the minimum loan so small withdrawals do not close it again
             if (_canBorrow(recovery) && spare.mulDiv(s.price, maxCR) >= _minDebt()) {
                 _openTrove(spare, s.price);
@@ -692,11 +721,10 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
 
     function _repayToTarget(State memory s, uint256 coll, uint256 spare, bool recovery) internal {
         Trove memory t = s.trove;
-        bool blocked = _repayBlocked();
         uint256 debt = Math.max(coll.mulDiv(s.price, targetCR), _debtFloor(s));
         // Unsafe even at the lowest reachable loan, so hold plain BTC if Mezo lets the trove close
         if (
-            !recovery && !blocked && coll.mulDiv(s.price, debt) < minCR
+            !recovery && !_repayBlocked() && coll.mulDiv(s.price, debt) < minCR
                 && _systemAllowsExit(t, s.price)
         ) {
             uint256 owed = t.debt - gasComp;
@@ -705,11 +733,16 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
                 return;
             }
         }
-        uint256 repay = blocked ? 0 : t.debt.saturatingSub(debt);
+        _repayTo(t, debt, spare);
+    }
+
+    // Repays from savings toward debt, Recovery Mode allows repayments that add no debt
+    function _repayTo(Trove memory t, uint256 debt, uint256 spare) internal {
+        uint256 repay = _repayBlocked() ? 0 : t.debt.saturatingSub(debt);
         _pullMusd(repay);
         repay = Math.min(repay, musd.balanceOf(address(this)));
         if (repay == 0 && spare == 0) return;
-        (address upper, address lower) = _hint(t, coll, t.debt - repay);
+        (address upper, address lower) = _hint(t, t.coll + spare, t.debt - repay);
         borrowerOperations.adjustTrove{value: spare}(0, repay, false, upper, lower);
     }
 
@@ -756,34 +789,25 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         emit ShortfallBought(btcIn, out);
     }
 
-    // A waiting request stops new debt until the queue is paid
+    // A waiting request stops new debt until the queue is paid, and so does a thin savings spread
     function _canBorrow(bool recovery) internal view returns (bool) {
         return borrowingEnabled && !recovery && _pending() == 0
-            && interestRateManager.interestRate() <= maxBorrowRate;
+            && interestRateManager.interestRate() <= maxBorrowRate && savingsSleeve.spreadOk();
     }
 
     function _minDebt() internal view returns (uint256) {
         return borrowerOperations.minNetDebt() + gasComp;
     }
 
-    // Picks the list position closest to where the trove lands, t is the trove before the move
+    // t is the trove before the move, coll and debt where it lands
     function _hint(Trove memory t, uint256 coll, uint256 debt)
         internal
         view
         returns (address, address)
     {
-        uint256 nicr = coll.mulDiv(1e20, debt);
-        uint256 moved = type(uint256).max;
-        if (t.active) {
-            uint256 current = t.coll.mulDiv(1e20, t.debt);
-            moved = current > nicr ? current - nicr : nicr - current;
-            // Our neighbours stay adjacent once the trove is lifted out, unbeatable for a small move
-            if (moved <= nicr / 100) return _neighbours();
-        }
-        // Seeded by the ratio, so a gas estimate samples the same troves the transaction will
-        (address hint, uint256 diff,) = hintHelpers.getApproxHint(nicr, HINT_TRIALS, nicr);
-        if (moved <= diff || hint == address(this)) return _neighbours();
-        return (hint, hint);
+        return SystemMath.hint(
+            hintHelpers, sortedTroves, t.active, t.coll, t.debt, coll, debt, HINT_TRIALS
+        );
     }
 
     function _neighbours() internal view returns (address, address) {
@@ -792,42 +816,21 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
 
     function _parkMusd() internal {
         uint256 held = musd.balanceOf(address(this));
-        if (held == 0) return;
-        musd.forceApprove(address(savings), held);
-        savings.deposit(held);
+        if (held > 0) musd.safeTransfer(address(savingsSleeve), held);
+        savingsSleeve.park();
     }
 
     // Raises the MUSD balance to amount from savings, or as close as savings allow
     function _pullMusd(uint256 amount) internal {
         uint256 held = musd.balanceOf(address(this));
-        if (held >= amount) return;
-        uint256 principal = savings.balanceOf(address(this));
-        uint256 accrued = savingsValue() - principal;
-        uint256 fromPrincipal = Math.min((amount - held).saturatingSub(accrued), principal);
-        // sMUSD pays all accrued yield on withdraw as well
-        if (fromPrincipal > 0) savings.withdraw(fromPrincipal);
-        else if (accrued > 0) savings.claimYield();
+        if (held < amount) savingsSleeve.pull(amount - held);
     }
 
-    // Approve exactly what the router pulls, so no allowance outlives the swap
     function _swap(address tokenIn, address tokenOut, uint256 amountIn, uint256 minOut)
         internal
         returns (uint256)
     {
-        if (!IERC20(tokenIn).approve(address(router), amountIn)) revert BadParams();
-        uint256[] memory amounts = router.swapExactTokensForTokens(
-            amountIn, minOut, _route(tokenIn, tokenOut), address(this), block.timestamp
-        );
-        return amounts[amounts.length - 1];
-    }
-
-    function _route(address tokenIn, address tokenOut)
-        internal
-        view
-        returns (IRouter.Route[] memory routes)
-    {
-        routes = new IRouter.Route[](1);
-        routes[0] = IRouter.Route(tokenIn, tokenOut, false, poolFactory);
+        return SystemMath.swap(router, poolFactory, tokenIn, tokenOut, amountIn, minOut);
     }
 
     /* Profit unlock and sleeve */
@@ -884,8 +887,17 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
     function unwind() external nonReentrant onlyGuardianOrOwner {
         borrowingEnabled = false;
         emit BorrowingSet(false);
-        Trove memory t = trove();
-        if (t.active) _closeTrove(t, priceFeed.fetchPrice());
+        State memory s = _state(address(this).balance);
+        Trove memory t = s.trove;
+        if (!t.active) return;
+        // Mezo refuses a close in Recovery Mode or below CCR, so repay to the minimum and close later
+        if (troveManager.checkRecoveryMode(s.price) || !_systemAllowsExit(t, s.price)) {
+            closing = true;
+            _repayTo(t, _minDebt(), 0);
+        } else {
+            _closeTrove(t, s.price);
+            closing = false;
+        }
     }
 
     /* Owner */
@@ -902,9 +914,43 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         emit GuardianSet(previous, guardian_);
     }
 
+    // Turning borrowing back on also calls off an unwind still waiting to close
     function setBorrowingEnabled(bool enabled) external onlyOwner {
         borrowingEnabled = enabled;
         emit BorrowingSet(enabled);
+        if (enabled) closing = false;
+    }
+
+    // Capped in code, a rise waits FEE_DELAY and a cut applies at once
+    function setFee(uint16 feeBps_, address recipient) external onlyOwner {
+        if (feeBps_ > MAX_FEE_BPS || (feeBps_ > 0 && recipient == address(0))) revert BadParams();
+        _applyFee();
+        feeRecipient = recipient;
+        if (feeBps_ > feeBps) {
+            nextFeeBps = feeBps_;
+            nextFeeAt = uint64(block.timestamp + FEE_DELAY);
+        } else {
+            feeBps = feeBps_;
+            nextFeeAt = 0;
+        }
+        emit FeeSet(feeBps_, recipient);
+    }
+
+    // A rise set through setFee takes over once its date passes
+    function _applyFee() internal {
+        if (nextFeeAt != 0 && block.timestamp >= nextFeeAt) {
+            feeBps = nextFeeBps;
+            nextFeeAt = 0;
+        }
+    }
+
+    // Mints and burns move the deficit with supply, so a leaving holder takes their part along
+    function _update(address from, address to, uint256 value) internal override {
+        uint256 supply = totalSupply();
+        super._update(from, to, value);
+        if ((from == address(0) || to == address(0)) && supply > 0) {
+            deficit = deficit.mulDiv(totalSupply(), supply);
+        }
     }
 
     function setParams(
@@ -927,8 +973,6 @@ contract Vault is ERC4626, Ownable2Step, ReentrancyGuard {
         slippageBps = slippageBps_;
         maxBorrowRate = maxBorrowRate_;
         depositCap = depositCap_;
-        emit ParamsSet(
-            minCR_, targetCR_, maxCR_, bufferBps_, slippageBps_, maxBorrowRate_, depositCap_
-        );
+        emit ParamsSet();
     }
 }

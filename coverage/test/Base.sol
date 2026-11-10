@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {Vault} from "vault/Vault.sol";
 import {RedeemQueue} from "vault/RedeemQueue.sol";
+import {SavingsSleeve} from "vault/SavingsSleeve.sol";
 import {
     IBorrowerOperations,
     ITroveManager,
@@ -100,6 +101,9 @@ contract Base is Test {
     address constant BTC = 0x7b7C000000000000000000000000000000000000;
     uint256 constant PRICE = 100_000e18;
     uint256 constant GAS_COMP = 200e18;
+    // sMUSD the whale holds before any vault and the yield it is paid a day later
+    uint256 constant SEED_SAVINGS = 10_000e18;
+    uint256 constant SEED_YIELD = 100e18;
 
     IMezoSystem sys;
     IBorrowerOperations bo;
@@ -113,6 +117,7 @@ contract Base is Test {
     IRouter router;
     Vault vault;
     RedeemQueue queue;
+    SavingsSleeve savingsSleeve;
 
     address whale = makeAddr("whale");
     address keeper = makeAddr("keeper");
@@ -141,10 +146,13 @@ contract Base is Test {
         sys.start(PRICE, savings);
 
         _seed();
+        _seedSavings();
 
         vault = _newVault(7 days);
         queue = vault.queue();
+        savingsSleeve = vault.savingsSleeve();
         vault.setBorrowingEnabled(true);
+        _warmUp();
     }
 
     // The whale keeps the vault trove from ever being the last one and seeds the pool
@@ -156,18 +164,52 @@ contract Base is Test {
         _addLiquidity(10 ether);
     }
 
-    function _newVault(uint256 period) internal returns (Vault v) {
+    // The whale holds sMUSD before any vault, so a later yield moves the index
+    function _seedSavings() internal {
+        vm.startPrank(whale);
+        musd.approve(savings, SEED_SAVINGS);
+        ISavings(savings).deposit(SEED_SAVINGS);
+        vm.stopPrank();
+    }
+
+    // A day of sMUSD history with a yield in it, the spread guard reads no rate before that
+    function _warmUp() internal {
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        _yield(SEED_YIELD);
+    }
+
+    // Deployed at the address the next create from this contract gets
+    function _newSleeve() internal returns (SavingsSleeve) {
+        address next = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        return new SavingsSleeve(
+            next, ISavings(savings), btc, bo, IVoter(address(0)), router, factory
+        );
+    }
+
+    function _newVault(uint256 period) internal returns (Vault) {
+        return _vaultWith(_newSleeve(), period);
+    }
+
+    function _vaultWith(SavingsSleeve sleeve_, uint256 period) internal returns (Vault) {
+        return _vaultWith(sleeve_, ISavings(savings), period);
+    }
+
+    function _vaultWith(SavingsSleeve sleeve_, ISavings savings_, uint256 period)
+        internal
+        returns (Vault v)
+    {
         v = new Vault(
             btc,
             bo,
             IHintHelpers(hints),
-            ISavings(savings),
+            savings_,
             router,
             factory,
             keeper,
             guardian,
             period,
             IVoter(address(0)),
+            sleeve_,
             "Feasy BTC",
             "fBTC"
         );
@@ -214,6 +256,16 @@ contract Base is Test {
         musd.approve(savings, amount);
         ISavingsAdmin(savings).receiveProtocolYield(amount);
         vm.stopPrank();
+    }
+
+    // Gains since the last checkpoint, hidden from the share price until the next one
+    function _pendingProfit() internal view returns (uint256) {
+        return vault.rawAssets() - vault.recorded();
+    }
+
+    // sMUSD the savings sleeve holds outside the gauge
+    function _parked() internal view returns (uint256) {
+        return ISavings(savings).balanceOf(address(savingsSleeve));
     }
 
     function _ratio() internal view returns (uint256) {

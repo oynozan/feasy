@@ -17,8 +17,8 @@ contract VaultProfitTest is Base {
         uint256 total = vault.totalAssets();
         _yield(1000e18);
         assertEq(vault.totalAssets(), total, "payout hidden until a checkpoint");
-        assertEq(vault.rawAssets(), total + vault.pendingProfit());
-        uint256 pending = vault.pendingProfit();
+        assertEq(vault.rawAssets(), total + _pendingProfit());
+        uint256 pending = _pendingProfit();
         assertGt(pending, 0);
 
         vm.expectEmit(false, false, false, false, address(vault));
@@ -73,7 +73,7 @@ contract VaultProfitTest is Base {
         vm.prank(whale);
         btc.transfer(address(vault), 0.5 ether);
         assertEq(vault.totalAssets(), total);
-        assertEq(vault.pendingProfit(), 0.5 ether);
+        assertEq(_pendingProfit(), 0.5 ether);
         vault.sync();
         assertEq(vault.lockedProfit(), 0.5 ether);
     }

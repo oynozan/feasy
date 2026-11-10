@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Base} from "./Base.sol";
+import {Base, ILiquidations} from "./Base.sol";
 import {Vault} from "vault/Vault.sol";
 
 contract VaultExitTest is Base {
@@ -128,14 +128,22 @@ interface IWithdrawColl {
     function withdrawColl(uint256 amount, address upperHint, address lowerHint) external;
 }
 
-// No whale and no pool, so the vault opens the only trove of the system
+// No pool, and the whale's small trove only funds the sMUSD seed before a liquidation removes it
 contract VaultLastTroveTest is Base {
-    function _seed() internal override {}
+    function _seed() internal override {
+        _borrower(whale, 0.2 ether, 1.6e18);
+    }
 
     function test_lastTroveCannotClose() public {
         _depositBTC(alice, 2 ether);
         vault.rebalance();
         assertTrue(vault.trove().active);
+        // A dip under the whale's 110% lets the stability pool absorb its loan
+        _setPrice(68_000e18);
+        vm.prank(carol);
+        ILiquidations(address(tm)).liquidate(whale);
+        _setPrice(PRICE);
+        assertEq(tm.getTroveStatus(whale), 3, "whale liquidated");
         assertEq(tm.getEntireSystemDebt(), vault.trove().debt, "vault is the last trove");
         uint256 max = vault.maxWithdraw(alice);
         assertLt(max, vault.previewRedeem(vault.balanceOf(alice)), "the trove has to stay");

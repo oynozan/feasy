@@ -66,6 +66,52 @@ roll_sleeve() {
     return 0
 }
 
+# Opens a boost gauge for every rung without one, locks MEZO as veMEZO and votes the boost once an epoch
+boost_rungs() {
+    local now start booster boost_voter id gauge ve_mezo voted
+    booster="$(cast call "$VAULT" 'feeRecipient()(address)' -r "$RPC" 2>/dev/null || true)"
+    booster="${BOOSTER:-$booster}"
+    [ -z "$booster" ] || [ "$booster" = "0x0000000000000000000000000000000000000000" ] && return 0
+    now="$(cast block latest -f timestamp -r "$RPC")"
+    start=$((now - now % 604800))
+    # Mezo takes boost votes only between an hour after the flip and an hour before the next
+    { [ "$now" -le $((start + 3600)) ] || [ "$now" -ge $((start + 604800 - 3600)) ]; } && return 0
+    boost_voter="$(cast call "$booster" 'boostVoter()(address)' -r "$RPC")"
+    for i in 0 1 2 3; do
+        id="$(cast call "$SLEEVE" 'rungs(uint256)(uint256,uint128,uint64)' "$i" -r "$RPC" | sed -n 1p | cut -d' ' -f1)"
+        [ "$id" = "0" ] && continue
+        gauge="$(cast call "$boost_voter" 'boostableTokenIdToGauge(uint256)(address)' "$id" -r "$RPC")"
+        if [ "$gauge" = "0x0000000000000000000000000000000000000000" ]; then
+            send "$KEEPER_KEY" "$SLEEVE" 'addBoostGauge(uint256,address)' "$i" "$BOOST_GAUGE_FACTORY" \
+                || echo "boost gauge for rung $id failed"
+        fi
+    done
+    [ "$(num "$MEZO" 'balanceOf(address)(uint256)' "$booster")" != "0" ] \
+        && { send "$KEEPER_KEY" "$booster" 'lock()' || echo "veMEZO lock failed"; }
+    ve_mezo="$(num "$booster" 'veMezoId()(uint256)')"
+    [ "$ve_mezo" = "0" ] && return 0
+    voted="$(num "$boost_voter" 'lastVoted(uint256)(uint256)' "$ve_mezo")"
+    [ "$voted" -ge "$start" ] && return 0
+    send "$KEEPER_KEY" "$booster" 'boost()' || echo "boost vote failed"
+}
+
+# Claims the savings sleeve's MEZO, the booster's share goes into veMEZO and the rest is sold for BTC
+harvest_mezo() {
+    local earned boost_bps min_out=0 rest
+    earned="$(num "$SAVINGS_SLEEVE" 'mezoEarned()(uint256)')"
+    [ "$(big "$earned >= ${MIN_MEZO:-100000000000000000000}")" = "1" ] || return 0
+    boost_bps="$(num "$SAVINGS_SLEEVE" 'boostBps()(uint16)')"
+    rest="$(big "$earned - $earned * $boost_bps // 10000")"
+    if [ "$rest" != "0" ]; then
+        # Quoted through MUSD like the sleeve's own route, less the vault's slippage allowance
+        min_out="$(cast call "$ROUTER" 'getAmountsOut(uint256,(address,address,bool,address)[])(uint256[])' \
+            "$rest" "[($MEZO,$MUSD,false,$POOL_FACTORY),($MUSD,$BTC,false,$POOL_FACTORY)]" -r "$RPC" \
+            | tr -d '[]' | awk -F', ' '{print $NF}' | cut -d' ' -f1)"
+        min_out="$(big "$min_out * (10000 - $(num "$VAULT" 'slippageBps()(uint256)')) // 10000")"
+    fi
+    send "$KEEPER_KEY" "$SAVINGS_SLEEVE" 'harvestMezo(uint256)' "$min_out" || echo "MEZO harvest failed"
+}
+
 while true; do
     PRICE="$(num "$PRICE_FEED" 'fetchPrice()(uint256)')"
     TROVE="$(cast call "$VAULT" 'trove()((bool,uint256,uint256))' -r "$RPC" | tr -d '()' | sed 's/\[[^]]*\]//g')"
@@ -82,12 +128,16 @@ while true; do
     BORROWING="$(cast call "$VAULT" 'borrowingEnabled()(bool)' -r "$RPC")"
     RECOVERY="$(cast call "$TROVE_MANAGER" 'checkRecoveryMode(uint256)(bool)' "$PRICE" -r "$RPC")"
     MAX_RATE="$(num "$VAULT" 'maxBorrowRate()(uint16)')"
+    # v8 also borrows only while sMUSD's realized rate beats the loan rate, and may wait to finish an unwind
+    SAVINGS_SLEEVE="$(cast call "$VAULT" 'savingsSleeve()(address)' -r "$RPC" 2>/dev/null || true)"
+    SPREAD_OK="$([ -n "$SAVINGS_SLEEVE" ] && cast call "$SAVINGS_SLEEVE" 'spreadOk()(bool)' -r "$RPC" || echo true)"
+    CLOSING="$(cast call "$VAULT" 'closing()(bool)' -r "$RPC" 2>/dev/null || echo false)"
     RATE="$(num "$(num "$BORROWER_OPS" 'interestRateManager()(address)')" 'interestRate()(uint16)')"
     TROVE_RATE="$(num "$TROVE_MANAGER" 'getTroveInterestRate(address)(uint16)' "$VAULT")"
     CAP="$(num "$TROVE_MANAGER" 'getTroveMaxBorrowingCapacity(address)(uint256)' "$VAULT")"
     QUEUE="$(cast call "$VAULT" 'queue()(address)' -r "$RPC")"
     PENDING="$(num "$QUEUE" 'pending()(uint256)')"
-    PENDING_PROFIT="$(num "$VAULT" 'pendingProfit()(uint256)')"
+    PENDING_PROFIT="$(big "max(0, $(num "$VAULT" 'rawAssets()(uint256)') - $(num "$VAULT" 'recorded()(uint256)'))")"
 
     OWED="$([ "$ACTIVE" = "true" ] && big "$DEBT - 200 * 10**18" || echo 0)"
     # Harvest only sells above the vault's 0.1% cushion over what the loan owes
@@ -98,9 +148,12 @@ while true; do
     REBALANCE="$(python -c "
 coll, debt, price, idle, assets = $COLL, $DEBT, $PRICE, $IDLE, $ASSETS
 recovery = '$RECOVERY' == 'true'
-can_borrow = '$BORROWING' == 'true' and not recovery and $RATE <= $MAX_RATE
+can_borrow = '$BORROWING' == 'true' and not recovery and $RATE <= $MAX_RATE and '$SPREAD_OK' == 'true'
+closing = '$CLOSING' == 'true'
 spare = 0 if recovery else idle - assets * ($BUFFER_BPS + $IDLE_SLACK_BPS) // 10000
-if debt:
+if closing:
+    work = not recovery
+elif debt:
     ratio = coll * price // debt
     grow = can_borrow and ($CAP - debt > debt // 100 or $TROVE_RATE >= $RATE)
     work = ratio < $MIN_CR or (ratio > $MAX_CR and grow) or spare > 0 or $HELD + 10**18 < $OWED
@@ -132,6 +185,7 @@ print(1 if work else 0)")"
     SLEEVE="$(cast call "$VAULT" 'sleeve()(address)' -r "$RPC" 2>/dev/null || true)"
     if [ -n "$SLEEVE" ] && [ "$SLEEVE" != "0x0000000000000000000000000000000000000000" ]; then
         roll_sleeve && CHECKPOINTED=1
+        [ -n "$SAVINGS_SLEEVE" ] && { harvest_mezo; boost_rungs; }
     fi
     # Every entry point checkpoints, so sync only when none ran and a gain above 1 bp waits
     if [ -z "$CHECKPOINTED" ] && [ "$(big "$PENDING_PROFIT * 10000 > $ASSETS")" = "1" ]; then

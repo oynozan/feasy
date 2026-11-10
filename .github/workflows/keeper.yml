@@ -32,3 +32,10 @@ jobs:
               env:
                   ONCE: "1"
               run: bash scripts/keeper.sh
+            # The retired v7 pays its exit queue from veBTC locks that end Nov 12, Nov 19 and Nov 26, even after a failed v8 pass
+            - name: Retired v7 pass
+              if: ${{ always() && env.KEEPER_PK != '' }}
+              env:
+                  ONCE: "1"
+                  VAULT: "0x4DA2eb6942cF136126A630e4C968CE43474c0Db6"
+              run: bash scripts/keeper.sh || true

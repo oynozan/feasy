@@ -3,8 +3,10 @@ pragma solidity 0.8.28;
 
 import {Vault} from "vault/Vault.sol";
 import {VeSleeve} from "vault/VeSleeve.sol";
-import {IHintHelpers, ISavings, IVoter} from "vault/interfaces/IMezo.sol";
-import {SleeveBase} from "./SleeveBase.sol";
+import {SavingsSleeve} from "vault/SavingsSleeve.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {ISavings, IVoter} from "vault/interfaces/IMezo.sol";
+import {SleeveBase, ISavingsAdmin} from "./SleeveBase.sol";
 
 contract SleeveEdgesTest is SleeveBase {
     function _bootstrap(uint8 lockWeeks, uint256 amount) internal {
@@ -32,23 +34,20 @@ contract SleeveEdgesTest is SleeveBase {
         }
     }
 
-    // A pool without a gauge is a sleeve that could never vote
+    // An sMUSD without a gauge is a pool the veBTC sleeve could never vote for
     function test_constructorRejectsBadEarn() public {
-        vm.expectRevert(VeSleeve.BadSleeve.selector);
-        new Vault(
-            btc,
-            bo,
-            IHintHelpers(hints),
-            ISavings(address(musd)),
-            router,
-            factory,
-            keeper,
-            guardian,
-            7 days,
-            IVoter(address(voter)),
-            "Feasy BTC",
-            "fBTC"
+        address impl =
+            deployCode("MUSDSavingsRate.sol:MUSDSavingsRate", abi.encode(address(0xdEaD)));
+        address other = address(
+            new ERC1967Proxy(impl, abi.encodeCall(ISavingsAdmin.initialize, (address(musd))))
         );
+        address next = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        SavingsSleeve s = new SavingsSleeve(
+            next, ISavings(other), btc, bo, IVoter(address(voter)), router, factory
+        );
+        assertEq(address(s.gauge()), address(0), "no gauge for it either");
+        vm.expectRevert(VeSleeve.BadSleeve.selector);
+        _vaultWith(s, ISavings(other), 7 days);
     }
 
     function test_callerChecks() public {

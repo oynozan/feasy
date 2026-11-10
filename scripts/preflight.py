@@ -37,6 +37,47 @@ def word(b, i):
     return int.from_bytes(b[i:i + 32], "big")
 
 
+def call(to, data, at):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "eth_call", "params": [{"to": to, "data": data}, at]}
+    return int(post(payload, 60)["result"], 16)
+
+
+def timestamp(at):
+    payload = {"jsonrpc": "2.0", "id": 1, "method": "eth_getBlockByNumber", "params": [at, False]}
+    return int(post(payload, 60)["result"]["timestamp"], 16)
+
+
+SMUSD = "0x6f461c68B2c5492C0F5CCEc5a264d692aA7A8e16"
+PRICE_FEED = "0x86bCF0841622a5dAC14A313a15f96A95421b9366"
+LIB = "0xFEA5000000000000000000000000000000000002"
+SIM_ORACLE = "0xFEA5000000000000000000000000000000000003"
+# The savings sleeve starts from sMUSD's real index a week back, so the spread guard sees a week of yield
+now = timestamp(block)
+probe = int(block, 16) - 100_000
+seconds_per_block = (now - timestamp(hex(probe))) / 100_000
+week_back = hex(int(int(block, 16) - 7 * 86400 / seconds_per_block))
+seed_index = call(SMUSD, "0xfae47729", week_back)
+seed_time = timestamp(week_back)
+
+
+overrides = {
+    HARNESS: {
+        "code": code,
+        "balance": hex(300 * 10**18 if scenario in (15, 16, 18, 34) else 10**18),
+        "state": {"0x" + "00" * 32: "0x%064x" % seed_index, "0x" + "00" * 31 + "01": "0x%064x" % seed_time},
+    },
+    LIB: {"code": open(os.environ["LIB_CODE_FILE"]).read().strip()},
+}
+# Recovery Mode can't be reached on testnet, so this one scenario reads a price the harness sets
+if scenario == 43:
+    live = call(PRICE_FEED, "0x0fdb11cf", block)
+    overrides[SIM_ORACLE] = {
+        "code": open(os.environ["SIM_CODE_FILE"]).read().strip(),
+        "state": {"0x" + "00" * 32: "0x%064x" % live},
+    }
+    overrides[PRICE_FEED] = {"stateDiff": {"0x" + "00" * 32: "0x" + "00" * 12 + SIM_ORACLE[2:].lower()}}
+
+
 def run(sid):
     payload = {
         "jsonrpc": "2.0",
@@ -47,10 +88,10 @@ def run(sid):
                 "from": "0x000000000000000000000000000000000000dEaD",
                 "to": HARNESS,
                 "data": "0x" + SCENARIO_SELECTOR + sid.to_bytes(32, "big").hex(),
-                "gas": hex(25_000_000),
+                "gas": hex(40_000_000),
             },
             block,
-            {HARNESS: {"code": code, "balance": hex(300 * 10**18 if scenario in (15, 16, 18, 34) else 10**18)}},
+            overrides,
         ],
     }
     resp = post(payload, 300)
@@ -88,7 +129,7 @@ def show(labels, values):
     for label, value in zip(labels, values):
         if label.startswith("==") or label.startswith("check ok") or label.startswith("CHECK FAILED"):
             print(label)
-        elif label.endswith(("gas", "precompile calls", "ids")) or label == "precompile budget left":
+        elif label.endswith(("gas", "precompile calls", "ids", "bps", "rise")) or label == "precompile budget left":
             print(f"  {label:26} {value}")
         else:
             print(f"  {label:26} {value / 1e18:.10f}")

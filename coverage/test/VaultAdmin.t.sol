@@ -4,14 +4,32 @@ pragma solidity 0.8.28;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Base, IAggregator} from "./Base.sol";
 import {Vault} from "vault/Vault.sol";
+import {SavingsSleeve} from "vault/SavingsSleeve.sol";
+import {ISavings} from "vault/interfaces/IMezo.sol";
 
 contract VaultAdminTest is Base {
     function test_constructorRejectsUnlockPeriod() public {
+        SavingsSleeve s = _newSleeve();
         vm.expectRevert(Vault.BadParams.selector);
-        _newVault(0);
+        _vaultWith(s, 0);
+        s = _newSleeve();
         vm.expectRevert(Vault.BadParams.selector);
-        _newVault(30 days + 1);
+        _vaultWith(s, 30 days + 1);
         assertEq(_newVault(30 days).unlockPeriod(), 30 days);
+    }
+
+    // A sleeve deployed for another address would hand the vault's sMUSD to that address
+    function test_constructorRejectsForeignSleeve() public {
+        _newSleeve();
+        vm.expectRevert(Vault.BadParams.selector);
+        _vaultWith(savingsSleeve, 7 days);
+    }
+
+    // The sleeve has to save into the same sMUSD the veBTC sleeve votes for
+    function test_constructorRejectsOtherSavings() public {
+        SavingsSleeve s = _newSleeve();
+        vm.expectRevert(Vault.BadParams.selector);
+        _vaultWith(s, ISavings(address(musd)), 7 days);
     }
 
     function test_constructorWiring() public view {
@@ -83,6 +101,8 @@ contract VaultAdminTest is Base {
         vault.setParams(2e18, 2.5e18, 3e18, 10_001, 100, 200, 0);
         vm.expectRevert(Vault.BadParams.selector);
         vault.setParams(2e18, 2.5e18, 3e18, 300, 501, 200, 0);
+        vm.expectEmit(address(vault));
+        emit Vault.ParamsSet();
         vault.setParams(1.5e18, 1.6e18, 1.7e18, 10_000, 500, 50, 7);
         assertEq(vault.minCR(), 1.5e18);
         assertEq(vault.targetCR(), 1.6e18);
@@ -149,7 +169,7 @@ contract VaultAdminTest is Base {
         assertEq(vault.maxMint(alice), 0);
         assertEq(vault.maxWithdraw(alice), 0);
         assertEq(vault.maxRedeem(alice), 0);
-        assertEq(vault.pendingProfit(), 1 ether);
+        assertEq(_pendingProfit(), 1 ether);
         vm.expectRevert();
         vault.sync();
     }

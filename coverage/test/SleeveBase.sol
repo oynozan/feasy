@@ -8,6 +8,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {Vault} from "vault/Vault.sol";
 import {RedeemQueue} from "vault/RedeemQueue.sol";
 import {VeSleeve} from "vault/VeSleeve.sol";
+import {SavingsSleeve} from "vault/SavingsSleeve.sol";
 // Imported by path only, so Foundry writes the library artifact it links the vault against
 import {SystemMath} from "vault/SystemMath.sol";
 import {
@@ -179,6 +180,10 @@ interface IOwnableLike {
     function transferOwnership(address owner) external;
 }
 
+interface INotifyLike {
+    function notifyRewardWithoutClaim(uint256 amount) external;
+}
+
 contract SleeveBase is Test {
     address constant BTC = 0x7b7C000000000000000000000000000000000000;
     // Mezo's MEZO precompile, left without code since nothing the vault touches calls it
@@ -218,6 +223,7 @@ contract SleeveBase is Test {
     Vault vault;
     RedeemQueue queue;
     VeSleeve sleeve;
+    SavingsSleeve savingsSleeve;
 
     address forwarder;
     address registry;
@@ -234,6 +240,13 @@ contract SleeveBase is Test {
     IEarnReward fees;
     IEarnReward bribe;
     uint256 daveLock;
+
+    // Set by _lpEarn, a tigris LP token in the role testnet gives MEZO
+    address lp;
+    IEarnVoter lpVoter;
+    address lpGauge;
+    address lpVe;
+    address lpBooster;
 
     address whale = makeAddr("whale");
     address keeper = makeAddr("keeper");
@@ -277,6 +290,7 @@ contract SleeveBase is Test {
         vault = _newVault(7 days);
         queue = vault.queue();
         sleeve = vault.sleeve();
+        savingsSleeve = vault.savingsSleeve();
         vault.setBorrowingEnabled(true);
         _stakeAndVote();
 
@@ -373,20 +387,8 @@ contract SleeveBase is Test {
         distributor.setDepositor(address(chainFee));
         ve.setVoterAndDistributor(address(voter), address(distributor));
 
-        veMezo = _proxy(
-            deployCode(string.concat(EARN, "VeMEZO/contracts/VeMEZO.sol:VeMEZO")),
-            abi.encodeWithSignature("initialize(address,address)", MEZO, registry)
-        );
-        IEarnVe(veMezo).initializeV2();
-        booster = _proxy(
-            deployCode(
-                string.concat(EARN, "BoostVoter/contracts/BoostVoter.sol:BoostVoter"),
-                abi.encode(forwarder)
-            ),
-            abi.encodeWithSignature(
-                "initialize(address,address,address)", veMezo, address(ve), registry
-            )
-        );
+        veMezo = _newVeMezo(MEZO);
+        booster = _newBoostVoter(veMezo);
         ve.setBooster(booster);
         thirdParty = _proxy(
             deployCode(
@@ -427,14 +429,90 @@ contract SleeveBase is Test {
 
     // A Pools Voter behind its own proxy, BTC is the emission token here
     function _newVoter() internal returns (address) {
+        return _voterPaying(BTC);
+    }
+
+    function _voterPaying(address token) internal returns (address) {
         return _proxy(
             deployCode(
                 string.concat(EARN, "Voter/contracts/Voter.sol:Voter"), abi.encode(forwarder)
             ),
             abi.encodeWithSignature(
-                "initialize(address,address,address)", address(ve), registry, BTC
+                "initialize(address,address,address)", address(ve), registry, token
             )
         );
+    }
+
+    function _newVeMezo(address token) internal returns (address v) {
+        v = _proxy(
+            deployCode(string.concat(EARN, "VeMEZO/contracts/VeMEZO.sol:VeMEZO")),
+            abi.encodeWithSignature("initialize(address,address)", token, registry)
+        );
+        IEarnVe(v).initializeV2();
+    }
+
+    function _newBoostVoter(address votingVe) internal returns (address) {
+        return _proxy(
+            deployCode(
+                string.concat(EARN, "BoostVoter/contracts/BoostVoter.sol:BoostVoter"),
+                abi.encode(forwarder)
+            ),
+            abi.encodeWithSignature(
+                "initialize(address,address,address)", votingVe, address(ve), registry
+            )
+        );
+    }
+
+    // MEZO is a precompile with no source, so the LP token of a MUSD and sMUSD pool takes its place
+    function _lpEarn() internal {
+        vm.startPrank(whale);
+        musd.approve(savings, 10_000e18);
+        ISavings(savings).deposit(10_000e18);
+        vm.stopPrank();
+        lp = IPoolAdmin(factory).createPool(address(musd), savings, false);
+        vm.startPrank(whale);
+        musd.approve(address(router), 10_000e18);
+        ISavingsAdmin(savings).approve(address(router), 10_000e18);
+        IRouterLiquidity(address(router))
+            .addLiquidity(
+                address(musd),
+                savings,
+                false,
+                10_000e18,
+                10_000e18,
+                0,
+                0,
+                whale,
+                vm.getBlockTimestamp()
+            );
+        vm.stopPrank();
+        lpVoter = IEarnVoter(_voterPaying(lp));
+        lpGauge = lpVoter.createVaultGauge(gaugeFactory, savings);
+        lpVe = _newVeMezo(lp);
+        lpBooster = _newBoostVoter(lpVe);
+        IEarnVe(lpVe).addSecondaryVoter(lpBooster);
+        vm.prank(team);
+        IEarnVe(address(ve)).setBooster(lpBooster);
+    }
+
+    // The vault's savings sleeve stakes in the LP paying gauge, its veBTC sleeve stays on voter
+    function _lpVault() internal returns (Vault v) {
+        v = _vaultWith(_newSleeve(address(lpVoter)), ISavings(savings), 7 days);
+        vault = v;
+        queue = v.queue();
+        sleeve = v.sleeve();
+        savingsSleeve = v.savingsSleeve();
+        v.setBorrowingEnabled(true);
+    }
+
+    // The team streams reward over the rest of the epoch, as notifyRewardWithoutClaim allows it
+    function _fundLpGauge(uint256 amount) internal {
+        vm.prank(whale);
+        IERC20(lp).transfer(team, amount);
+        vm.startPrank(team);
+        IERC20(lp).approve(lpGauge, amount);
+        INotifyLike(lpGauge).notifyRewardWithoutClaim(amount);
+        vm.stopPrank();
     }
 
     function _proxy(address implementation, bytes memory init) internal returns (address) {
@@ -476,18 +554,32 @@ contract SleeveBase is Test {
         chainFee.updatePeriod();
     }
 
-    function _newVault(uint256 period) internal returns (Vault v) {
+    // Deployed at the address the next create from this contract gets, staking in voter's gauge
+    function _newSleeve(address voter_) internal returns (SavingsSleeve) {
+        address next = vm.computeCreateAddress(address(this), vm.getNonce(address(this)) + 1);
+        return new SavingsSleeve(next, ISavings(savings), btc, bo, IVoter(voter_), router, factory);
+    }
+
+    function _newVault(uint256 period) internal returns (Vault) {
+        return _vaultWith(_newSleeve(address(voter)), ISavings(savings), period);
+    }
+
+    function _vaultWith(SavingsSleeve sleeve_, ISavings savings_, uint256 period)
+        internal
+        returns (Vault v)
+    {
         v = new Vault(
             btc,
             bo,
             IHintHelpers(hints),
-            ISavings(savings),
+            savings_,
             router,
             factory,
             keeper,
             guardian,
             period,
             IVoter(address(voter)),
+            sleeve_,
             "Feasy BTC",
             "fBTC"
         );
@@ -510,6 +602,10 @@ contract SleeveBase is Test {
         return IPriceFeedView(sys.priceFeed()).fetchPrice();
     }
 
+    function _setPrice(uint256 price) internal {
+        sys.exec(sys.aggregator(), abi.encodeCall(IAggregator.setPrice, (price)));
+    }
+
     function _setRate(uint16 rate) internal {
         IRateTester(sys.interestRateManager()).setInterestRateForTesting(rate);
     }
@@ -526,6 +622,11 @@ contract SleeveBase is Test {
         musd.approve(savings, amount);
         ISavingsAdmin(savings).receiveProtocolYield(amount);
         vm.stopPrank();
+    }
+
+    // sMUSD the savings sleeve holds outside the gauge
+    function _parked() internal view returns (uint256) {
+        return ISavings(savings).balanceOf(address(savingsSleeve));
     }
 
     function _roll(address caller) internal returns (uint256 used) {

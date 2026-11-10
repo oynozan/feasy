@@ -20,7 +20,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
-import {IVeBTC, IVoter, IReward, IRewardsDistributor} from "./interfaces/IMezo.sol";
+import {IVeBTC, IVoter, IReward, IRewardsDistributor, IBoostVoter} from "./interfaces/IMezo.sol";
 
 interface IVaultRoles {
     function owner() external view returns (address);
@@ -51,6 +51,8 @@ contract VeSleeve {
     uint256 private constant TEND_GAS = 2_500_000;
     // A rebate claim before Mezo's weekly period update reverts, so a matured rung waits this long
     uint256 private constant CLAIM_GRACE = 1 days;
+    // veBTC's global catch-up after the Thursday flip, about 192k today and growing a week at a time
+    uint256 private constant CHECKPOINT_GAS = 1_000_000;
     uint256 public constant MIN_RUNG = 1e14;
 
     address public immutable vault;
@@ -124,6 +126,11 @@ contract VeSleeve {
 
     function collect() external onlyVault returns (uint256 released) {
         liveAtRoll = live();
+        // The first veBTC write after the flip pays the catch-up, which would starve a rebate claim
+        if (principal > 0) {
+            if (gasleft() < CHECKPOINT_GAS + CHECKPOINT_GAS / 63 + 50_000) revert LowGas();
+            try ve.checkpoint{gas: CHECKPOINT_GAS}() {} catch {}
+        }
         for (uint256 i; i < SLOTS; i++) {
             uint256 id = rungs[i].id;
             if (id == 0) continue;
@@ -164,6 +171,15 @@ contract VeSleeve {
             emit RungStuck(r.id);
             return 0;
         }
+    }
+
+    // Only a lock's owner may open its boost gauge, about 2.5M gas so never inside a roll
+    function addBoostGauge(uint256 i, address gaugeFactory) external returns (address) {
+        uint256 id = rungs[i].id;
+        if (id == 0) revert BadSleeve();
+        return IBoostVoter(ve.booster()).createBoostGauge(
+            gaugeFactory, id, new address[](0), new uint256[](0)
+        );
     }
 
     // On its own call, so a release Mezo refuses leaves the claims above standing

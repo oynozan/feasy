@@ -40,10 +40,10 @@ contract VaultHarvestTest is Base {
 
     function test_ownerHarvestsChunkFromYield() public {
         _yield(1000e18);
-        uint256 principal = ISavingsView(savings).balanceOf(address(vault));
+        uint256 principal = _parked();
         uint256 out = vault.harvest(10e18);
         assertGt(out, 0);
-        assertGe(ISavingsView(savings).balanceOf(address(vault)), principal, "paid from yield");
+        assertGe(_parked(), principal, "paid from yield");
     }
 
     function test_anyoneHarvestsAfterClose() public {
@@ -56,8 +56,4 @@ contract VaultHarvestTest is Base {
         vm.prank(alice);
         assertEq(vault.harvest(type(uint256).max), 0, "all sold");
     }
-}
-
-interface ISavingsView {
-    function balanceOf(address account) external view returns (uint256);
 }

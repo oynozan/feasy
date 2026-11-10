@@ -5,7 +5,7 @@ import {Vm, VmSafe} from "forge-std/Vm.sol";
 import {ISavings} from "vault/interfaces/IMezo.sol";
 import {SleeveBase as Base, IEarnVe, IGaugeLike} from "./SleeveBase.sol";
 
-// The v7 veBTC sleeve through whole weekly cycles on Mezo's own Earn, MUSD and tigris code
+// The veBTC sleeve through whole weekly cycles on Mezo's own Earn, MUSD and tigris code
 contract SleeveTest is Base {
     uint256 constant BPS = 10_000;
     uint256 constant MIN_RUNG = 1e14;
@@ -146,7 +146,7 @@ contract SleeveTest is Base {
         (uint256 id1,) = _rungAt(_epoch(1));
         uint256 rebate1 = distributor.claimable(id1);
 
-        uint256 parked = ISavings(savings).balanceOf(address(vault));
+        uint256 parked = _parked();
         uint256 rawBefore = vault.rawAssets();
         uint256 totalBefore = vault.totalAssets();
         uint256 lockedBefore = vault.lockedProfit();
@@ -162,15 +162,13 @@ contract SleeveTest is Base {
         uint256 musdIn = feeTotal + bribeTotal;
         assertEq(musd.balanceOf(address(sleeve)), 0, "sleeve passed the MUSD on");
         assertEq(musd.balanceOf(address(vault)), 0, "vault holds no loose MUSD");
-        assertEq(
-            ISavings(savings).balanceOf(address(vault)) - parked, musdIn, "MUSD parked in sMUSD"
-        );
+        assertEq(_parked() - parked, musdIn, "MUSD parked in sMUSD");
 
         uint256 rawAfter = vault.rawAssets();
         uint256 gainValue = rawAfter - rawBefore - rebate1;
         assertGe(gainValue + 2, _proceeds(musdIn), "MUSD valued at least at the haircut");
         assertEq(vault.totalAssets(), totalBefore, "not priced instantly");
-        assertEq(vault.pendingProfit(), 0, "checkpointed");
+        assertEq(vault.rawAssets(), vault.recorded(), "checkpointed");
         assertEq(vault.recorded(), rawAfter, "recorded moved to raw");
         uint256 gainAfter = rawAfter - recordedBefore;
         assertEq(vault.lockedProfit(), lockedBefore + gainAfter, "whole gain locked");
@@ -288,7 +286,7 @@ contract SleeveTest is Base {
         uint256 fee1 = fees.earned(address(musd), id1);
         uint256 fee2 = fees.earned(address(musd), id2);
         assertGt(fee1, 0, "matured rung has fees");
-        uint256 parked = ISavings(savings).balanceOf(address(vault));
+        uint256 parked = _parked();
 
         vm.recordLogs();
         _roll(keeper);
@@ -298,7 +296,7 @@ contract SleeveTest is Base {
         assertEq(kept, id1, "matured rung kept");
         assertEq(ve.ownerOf(id1), address(sleeve), "still the sleeve's");
         assertEq(fees.earned(address(musd), id1), 0, "its fees still claimed");
-        assertEq(ISavings(savings).balanceOf(address(vault)) - parked, fee1 + fee2, "fees parked");
+        assertEq(_parked() - parked, fee1 + fee2, "fees parked");
         uint256 principal = sleeve.principal();
         assertGe(principal, amt1, "principal still counts it");
 
@@ -465,7 +463,7 @@ contract SleeveTest is Base {
         assertGt(fee1, 0, "fees to claim");
         assertGt(rebate1, 0, "rebate to claim");
         uint256 idle = address(vault).balance;
-        uint256 parked = ISavings(savings).balanceOf(address(vault));
+        uint256 parked = _parked();
         vm.prank(address(voter));
         vm.expectRevert(bytes4(keccak256("NotVoter()")));
         ve.voting(id1, false);
@@ -480,7 +478,7 @@ contract SleeveTest is Base {
         assertTrue(ve.voted(id1), "old voter could not clear the flag");
         assertEq(fees.earned(address(musd), id1), 0, "its fees claimed");
         assertEq(distributor.claimable(id1), 0, "its rebate claimed");
-        assertEq(ISavings(savings).balanceOf(address(vault)) - parked, fee1 + fee2, "fees parked");
+        assertEq(_parked() - parked, fee1 + fee2, "fees parked");
         assertEq(address(vault).balance, idle + rebate1, "rebate reached the vault");
         (uint256 still,) = _rungAt(_epoch(2));
         assertEq(still, id2, "other rung unaffected");
@@ -625,16 +623,13 @@ contract SleeveTest is Base {
         (uint256 live,) = _rungAt(_epoch(8));
         uint256 rebate = distributor.claimable(live);
         assertGt(rebate, 0, "three weeks of rebate on the live rung");
+        uint256 lockedBefore = uint256(int256(ve.locked(live).amount));
         _gapRoll(_epoch(7), 3);
 
-        // Its depositFor was veBTC's first write in three weeks and ran out of CLAIM_GAS
-        assertEq(distributor.claimable(live), rebate, "skipped in the gap roll, not lost");
-        uint256 lockedBefore = uint256(int256(ve.locked(live).amount));
-        vm.warp(block.timestamp + 1 hours);
-        _roll(keeper);
-        assertEq(distributor.claimable(live), 0, "claimed on the next roll");
+        // collect paid veBTC's three week catch-up first, so the depositFor fit in CLAIM_GAS
+        assertEq(distributor.claimable(live), 0, "claimed in the gap roll");
         assertEq(uint256(int256(ve.locked(live).amount)), lockedBefore + rebate, "compounded");
-        emit log_named_uint("live rung rebate retried BTC", rebate);
+        emit log_named_uint("live rung rebate BTC", rebate);
     }
 
     function test_8c_gapFourMatured() public {
