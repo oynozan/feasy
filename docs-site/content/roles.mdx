@@ -13,7 +13,7 @@ Four kinds of callers touch the vault. None of them can move user funds.
 
 ### Owner
 
-The owner is an OpenZeppelin TimelockController with a 24-hour delay. Every owner call is public for a day before it can run. v8 is still owned by the deployer and moves to its own timelock next. The owner's limits are in the contract. Slippage tops out at 5%, the sleeve at 25%, the ladder at 4 weeks and the fee at 20%.
+The owner is an OpenZeppelin TimelockController with a 24-hour delay. Every owner call is public for a day before it can run. v8's is [`0x2A00…16d6`](https://explorer.test.mezo.org/address/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6). The owner's limits are in the contract. Slippage tops out at 5%, the sleeve at 25%, the ladder at 4 weeks and the fee at 20%.
 
 ### Guardian
 
@@ -23,7 +23,7 @@ A leaked guardian key can cost one borrow fee and one buy-back spread per unwind
 
 ### Keeper
 
-The keeper is a [script](https://github.com/oynozan/feasy/blob/main/scripts/keeper.sh) that runs about every 15 minutes, as a [GitHub Action](https://github.com/oynozan/feasy/blob/main/.github/workflows/keeper.yml) with its own key, separate from the owner. Until v8 is handed over, the deployer runs v8's passes.
+The keeper is a [script](https://github.com/oynozan/feasy/blob/main/scripts/keeper.sh) that runs about every 15 minutes, as a [GitHub Action](https://github.com/oynozan/feasy/blob/main/.github/workflows/keeper.yml) with its own key, separate from the owner.
 
 ## A keeper pass
 

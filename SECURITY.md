@@ -2,10 +2,23 @@
 
 This file covers the Feasy vault contracts. It sets out the scope, who can do what, what the vault depends on and its known limits. It also has a Slither run with every finding triaged, how the code was tested, and how to report a problem.
 
-The vault is unaudited and runs on Mezo testnet only. The live vault is v7, which is v6 plus a veBTC sleeve. The v6 and v5 sections below stay as the record of the code it replaced.
+The vault is unaudited and runs on Mezo testnet only. The live vault is v8, which is v7 plus the spread guard, a Recovery Mode unwind, a profit fee, the savings sleeve and the veMEZO booster. The v7, v6 and v5 sections below stay as the record of the code it replaced.
 
 ## Summary
 
+- **v8 scope:** everything below for v7, plus the savings sleeve [`contracts/src/SavingsSleeve.sol`](contracts/src/SavingsSleeve.sol), deployed just before the vault at its predicted address, and the booster [`contracts/src/Booster.sol`](contracts/src/Booster.sol). The addresses are in [Deployments](#deployments).
+- **What v8 adds to v7:**
+  - a spread guard, so the vault borrows only while sMUSD's realized rate beats the loan cost plus a margin;
+  - an `unwind()` that works in Recovery Mode, repaying to Mezo's minimum loan at once and closing on the first `rebalance()` Mezo allows;
+  - a 10% fee on profit only, with a loss carry-forward, a 20% cap and a 30-day wait on rises;
+  - a savings sleeve that stakes part of the sMUSD in the sMUSD gauge for MEZO;
+  - a booster whose permanent veMEZO lock votes boosts for the vault's own veBTC locks;
+  - a veBTC sleeve that checkpoints veBTC itself before its claims.
+- **Slither on v8:** 143 findings, none a true positive. The new ones are triaged in [v8 run](#v8-run).
+- **v8 tests:**
+  - 155 coverage tests pass on Mezo's real code, with the vault at 98.49% of lines and 96.55% of branches. They found two bugs before release, both fixed.
+  - Preflight's v8 scenarios pass on live testnet, Recovery Mode included, with only the oracle's price overridden.
+- **v8 ownership:** its own 24 hour TimelockController, see [Owner](#owner).
 - **v7 scope:** everything below for v6, plus the veBTC sleeve [`contracts/src/VeSleeve.sol`](contracts/src/VeSleeve.sol), which the vault creates, and the linked library [`contracts/src/SystemMath.sol`](contracts/src/SystemMath.sol). Deployed at vault [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6), queue [`0xB4D1…13C3`](https://explorer.test.mezo.org/address/0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3), sleeve [`0xee76…209B`](https://explorer.test.mezo.org/address/0xee76C202a9e43988c55DC86816a6c14211Db209B) and SystemMath [`0x34df…57f7`](https://explorer.test.mezo.org/address/0x34df486c93DB9a2A263498df97BDDF04BF1d57f7).
 - **What v7 adds to v6:**
   - up to four weekly veBTC locks that vote for the sMUSD gauge, and a keeper `roll()` that claims, releases, pays the queue and locks again;
@@ -38,7 +51,7 @@ The vault is unaudited and runs on Mezo testnet only. The live vault is v7, whic
 
 | | |
 | --- | --- |
-| Contracts | [`contracts/src/Vault.sol`](contracts/src/Vault.sol), plus [`contracts/src/RedeemQueue.sol`](contracts/src/RedeemQueue.sol) and [`contracts/src/VeSleeve.sol`](contracts/src/VeSleeve.sol), which the vault creates in its constructor. The internal libraries [`ProfitLock.sol`](contracts/src/ProfitLock.sol) and [`QueueMath.sol`](contracts/src/QueueMath.sol) are compiled in. [`SystemMath.sol`](contracts/src/SystemMath.sol) is a public library, deployed on its own and linked. Also [`contracts/src/interfaces/IMezo.sol`](contracts/src/interfaces/IMezo.sol). |
+| Contracts | [`contracts/src/Vault.sol`](contracts/src/Vault.sol), plus [`contracts/src/RedeemQueue.sol`](contracts/src/RedeemQueue.sol) and [`contracts/src/VeSleeve.sol`](contracts/src/VeSleeve.sol), which the vault creates in its constructor. On v8 also [`contracts/src/SavingsSleeve.sol`](contracts/src/SavingsSleeve.sol), deployed just before the vault, and [`contracts/src/Booster.sol`](contracts/src/Booster.sol), deployed right after. The internal libraries [`ProfitLock.sol`](contracts/src/ProfitLock.sol) and [`QueueMath.sol`](contracts/src/QueueMath.sol) are compiled in. [`SystemMath.sol`](contracts/src/SystemMath.sol) is a public library, deployed on its own and linked. Also [`contracts/src/interfaces/IMezo.sol`](contracts/src/interfaces/IMezo.sol). |
 | v7 deployment | Vault [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6), created at block 16356409. Queue [`0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3`](https://explorer.test.mezo.org/address/0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3), sleeve [`0xee76C202a9e43988c55DC86816a6c14211Db209B`](https://explorer.test.mezo.org/address/0xee76C202a9e43988c55DC86816a6c14211Db209B), SystemMath [`0x34df486c93DB9a2A263498df97BDDF04BF1d57f7`](https://explorer.test.mezo.org/address/0x34df486c93DB9a2A263498df97BDDF04BF1d57f7). All four are exact matches on Sourcify. The queue and the sleeve need `--libraries` too, because linking writes the library address into every contract's compiler settings. Runtime sizes: vault 24,476 bytes, sleeve 8,055, queue 4,165, SystemMath 1,398. |
 | Deployment | v6 at [`0xb7A15aB24483Dfe92056F73279ECF11CE00675db`](https://explorer.test.mezo.org/address/0xb7A15aB24483Dfe92056F73279ECF11CE00675db) on Mezo testnet (chain 31611), created at block 16353457 in [`0xfd2a…477d`](https://explorer.test.mezo.org/tx/0xfd2ad943617c7ea7cbda29f8d88f7de5a48f3cf603766e2a2a0a69860210477d). Its queue is at [`0x4e580155d4d7957874cA88803646141E98f90cb6`](https://explorer.test.mezo.org/address/0x4e580155d4d7957874cA88803646141E98f90cb6). |
 | Source verification | Sourcify exact match for the [vault](https://repo.sourcify.dev/31611/0xb7A15aB24483Dfe92056F73279ECF11CE00675db) and the [queue](https://repo.sourcify.dev/31611/0x4e580155d4d7957874cA88803646141E98f90cb6), on the runtime bytecode |
@@ -66,8 +79,9 @@ From Sourcify's compilation record and [`contracts/foundry.toml`](contracts/foun
 
 | Vault | Address | Status |
 | --- | --- | --- |
-| v7, live testnet | [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6), queue [`0xB4D1…13C3`](https://explorer.test.mezo.org/address/0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3), sleeve [`0xee76…209B`](https://explorer.test.mezo.org/address/0xee76C202a9e43988c55DC86816a6c14211Db209B) | Current, in scope |
-| v7, test copies | [`0x8E1cB817CFd049969e71B1F5325eC2E54a4DC6a8`](https://explorer.test.mezo.org/address/0x8E1cB817CFd049969e71B1F5325eC2E54a4DC6a8) and [`0xeDb4B6AAE0DcdC5Af45Cb42cf7714807CC9a075c`](https://explorer.test.mezo.org/address/0xeDb4B6AAE0DcdC5Af45Cb42cf7714807CC9a075c), owned by the guardian wallet | Their first veBTC locks end on 2026-10-29. `0x8E1c` runs the final vault and sleeve code with the queue from before its last fix, and `0xeDb4` runs the sleeve from before the review fixes. Do not deposit. |
+| v8, live testnet | [`0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2`](https://explorer.test.mezo.org/address/0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2), created at block 16686260. Queue [`0xFEAa…0825`](https://explorer.test.mezo.org/address/0xFEAa1083F3F5cBcBec51B2c12491E8474F230825), veBTC sleeve [`0x47fE…14EC`](https://explorer.test.mezo.org/address/0x47fE5D3C539314ea299E96a15d5f8D2956b414EC), savings sleeve [`0xF38B…41aD`](https://explorer.test.mezo.org/address/0xF38BE227B69FBE1D5CC5d41C2d7E362c984041aD), booster [`0xE561…Ab25`](https://explorer.test.mezo.org/address/0xE5611627004b8e64ca40C9ad7FEFF9cdEa83Ab25), SystemMath [`0xAF59…b976`](https://explorer.test.mezo.org/address/0xAF59E8672F29f76454aC30D9ac0A2503826eb976). All six are exact matches on Sourcify. Runtime sizes: vault 24,366 bytes, savings sleeve 10,501, veBTC sleeve 8,631, booster 3,921, SystemMath 3,738, queue 4,239. | Current, in scope. Owned by its own 24 hour timelock and kept by the keeper Action since 2026-11-10. |
+| v7, live testnet | [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6), queue [`0xB4D1…13C3`](https://explorer.test.mezo.org/address/0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3), sleeve [`0xee76…209B`](https://explorer.test.mezo.org/address/0xee76C202a9e43988c55DC86816a6c14211Db209B) | Retired on 2026-11-10. The guardian unwound its trove and paused new locks, and its holders moved to v8. The rest of each position waits in v7's queue for the locks that end on Nov 12 and Nov 19. |
+| v7, test copies | [`0x8E1cB817CFd049969e71B1F5325eC2E54a4DC6a8`](https://explorer.test.mezo.org/address/0x8E1cB817CFd049969e71B1F5325eC2E54a4DC6a8) and [`0xeDb4B6AAE0DcdC5Af45Cb42cf7714807CC9a075c`](https://explorer.test.mezo.org/address/0xeDb4B6AAE0DcdC5Af45Cb42cf7714807CC9a075c), owned by the guardian wallet | All four of their veBTC locks were claimed and withdrawn on 2026-11-10, and Alice's BTC left for v8. Only dust in parked MUSD stays. Do not deposit. |
 | v6, live testnet | [`0xb7A15aB24483Dfe92056F73279ECF11CE00675db`](https://explorer.test.mezo.org/address/0xb7A15aB24483Dfe92056F73279ECF11CE00675db), queue [`0x4e58…0cb6`](https://explorer.test.mezo.org/address/0x4e580155d4d7957874cA88803646141E98f90cb6) | Retired on 2026-10-25. Its loan is unwound and its holders moved to v7. The deployer keeps 0.0001 BTC in it until the last profit unlocks on 2026-11-01. |
 | v6, 1 hour unlock copy | [`0x58c91F038a7d8aaD87FEF5e3c508ab4695FeD317`](https://explorer.test.mezo.org/address/0x58c91F038a7d8aaD87FEF5e3c508ab4695FeD317) | Same runtime code with `unlockPeriod` 3600, used to measure the release. Do not deposit. |
 | v5, live testnet | [`0x2964612e8976b4003083E6014cA39f5fD7b41f3A`](https://explorer.test.mezo.org/address/0x2964612e8976b4003083E6014cA39f5fD7b41f3A) | Retired. Its trove is closed and its holders moved to v6. Only dust and one small position remain. |
@@ -86,6 +100,13 @@ On-chain reads in this section were taken on 2026-10-25 at block 16349995.
 
 ### Owner
 
+- **v8:** owned by its own OpenZeppelin 5.7 TimelockController [`0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6`](https://explorer.test.mezo.org/address/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6), verified on [Sourcify](https://repo.sourcify.dev/31611/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6) (exact match), with the same roles as v7's. Both sleeves and the booster take the vault's `owner()`, so their settings and the booster's sweep wait 24 hours too.
+- **v8 handover, 2026-11-10:** the keeper role moved to the Action's wallet with [`setKeeper`](https://explorer.test.mezo.org/tx/0xafd2f9a52351b74d3ac1c40064a13284f0c28683149935f35688b7a4d27a1d17). The timelock was deployed at zero delay. Then, in order:
+  - [`transferOwnership`](https://explorer.test.mezo.org/tx/0xab63897960b36e37d5366a280c70b092bfd3b02ab4c7e5c660729a0b31adae4a);
+  - `acceptOwnership` [scheduled](https://explorer.test.mezo.org/tx/0x0f615c817b641ff9beaf6fa70b7741ff14777ae635c42091d60ef9136b71f2f6) and [executed](https://explorer.test.mezo.org/tx/0xfa115d4c27f0b53841f436ac6c18db782ecff6339128d792252ec87b769fbedd);
+  - `updateDelay(86400)` [executed](https://explorer.test.mezo.org/tx/0x91b416ed04de63035d39fd4106d4f4a7868cb0d77d4abd351d962b6a3ed0107a).
+
+  The band, the sleeve, the stake, the booster, the fee and borrowing were set before the handover.
 - **v7:** owned by its own OpenZeppelin 5.7 TimelockController [`0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719`](https://explorer.test.mezo.org/address/0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719), verified on [Sourcify](https://repo.sourcify.dev/31611/0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719) (exact match), with the same roles as v6's. The sleeve takes the vault's `owner()` for its settings, so they wait 24 hours too.
 - **v7 handover, 2026-10-25:** the timelock was deployed at zero delay. Then, in order:
   - [`transferOwnership`](https://explorer.test.mezo.org/tx/0x6f7aff7aefbd1d06d210059d931155c291d09f3950135f622c67d5a5b1fe6ede);
@@ -113,7 +134,12 @@ On-chain reads in this section were taken on 2026-10-25 at block 16349995.
 | `setGuardian` (v6) | Sets the guardian and emits `GuardianSet(previous, new)` | Any address. Zero leaves both brakes with the owner alone. |
 | `setBorrowingEnabled` | Turns new borrowing on or off. v6 starts with it off. | Repayments, exits and buy-backs keep working |
 | `pauseBorrowing()` (v6) | Turns new borrowing off. The guardian can do the same. | Storage only. No price read and no external call, so it works with a stale oracle. |
-| `unwind()` | Turns borrowing off and closes the trove. It repays from savings and buys any MUSD shortfall with BTC. On v6 the guardian can also call it. | Reverts if Mezo refuses the close, as in Recovery Mode, and then it does not even pause. The swap has the same oracle bound as every other swap. |
+| `unwind()` | Turns borrowing off and closes the trove. It repays from savings and buys any MUSD shortfall with BTC. On v6 the guardian can also call it. | Up to v7 it reverts if Mezo refuses the close, as in Recovery Mode, and then it does not even pause. On v8 it repays to Mezo's minimum loan instead and sets `closing`, and the first `rebalance()` that Mezo lets close finishes it. The swap has the same oracle bound as every other swap. |
+| `setFee(bps, recipient)` (v8) | Sets the performance fee and where its shares go | At most 2,000 bps (20%), and a recipient is required once the fee is above 0. A rise takes effect 30 days later (`nextFeeBps`, `nextFeeAt`). A cut applies at once. A gain first wins back the BTC lost since the last high (`deficit`), and only the rest takes a fee, so a loss and its recovery are free. `deficit` scales with share supply on every mint and burn, so a deposit and exit round trip neither erases it nor creates one. |
+| `SavingsSleeve.setStake(bps)` (v8) | Sets the share of the vault's sMUSD staked in Mezo's sMUSD gauge | At most 10,000 bps. Staked sMUSD earns MEZO, and its MUSD yield goes to the gauge's veBTC voters. Exits unstake as needed. |
+| `SavingsSleeve.setMinSpread(bps)` (v8) | Sets how far the realized sMUSD rate must beat the loan rate before new debt | Any uint16. Higher only means less borrowing. |
+| `SavingsSleeve.setBooster(booster, bps)` (v8) | Names the booster and the share of harvested MEZO sent to it, the rest is sold for BTC | At most 10,000 bps, a booster is required once the share is above 0 |
+| `Booster.sweep(token, to, amount)` (v8) | Moves protocol revenue, the fee shares, out of the booster | Refuses MEZO. The veMEZO lock is permanent and has no withdraw path. |
 | `harvest(maxIn)` | Same as the keeper while the trove is open | Same limits as the keeper |
 | `VeSleeve.setSleeve` (v7) | Sets the sleeve's share of raw assets, an absolute cap and the ladder length. The sleeve checks the vault's `owner()`, so on testnet it waits 24 hours too. | Share at most 2,500 bps (25%). Ladder 1 to 4 weeks. The cap is unbounded. Locks already running keep their end dates. |
 | `VeSleeve.setPaused(false)` (v7) | Resumes new locks after a pause | Only the owner. The guardian, the keeper or the owner may pause. |
@@ -123,7 +149,9 @@ On v7 the owner cannot move a veBTC NFT, vote it for another gauge, or withdraw 
 
 v6 has no owner power over the profit unlock. `unlockPeriod` is a constructor immutable (7 days live, at most 30 days), and the queue has no owner at all.
 
-Live v7 settings: band 2.0 / 2.2 / 2.4, buffer 2%, slippage 4%, max borrow rate 2%, no deposit cap, borrowing on, and a 5% sleeve on a 4-week ladder with no cap. The test wallets hold 0.069 BTC, and Mezo's 2,000 MUSD minimum loan needs spare BTC × price / `maxCR` of at least 2,000, so the band sits lower and the sleeve stays small.
+Live v8 settings: band 2.15 / 2.20 / 2.25, buffer 2%, slippage 5%, max borrow rate 2%, no deposit cap, borrowing on, a 5% sleeve on a 4-week ladder, 20% of the sMUSD staked in the gauge, every MEZO to the booster, and a 10% fee from Dec 10. The tight band makes ordinary BTC moves trigger a repay or a borrow.
+
+v7 settings until 2026-11-10: band 2.0 / 2.2 / 2.4, buffer 2%, slippage 4%, max borrow rate 2%, no deposit cap, borrowing on, and a 5% sleeve on a 4-week ladder with no cap. The test wallets hold 0.069 BTC, and Mezo's 2,000 MUSD minimum loan needs spare BTC × price / `maxCR` of at least 2,000, so the band sits lower and the sleeve stays small.
 
 Live v6 settings until 2026-10-25: band 2.0 / 2.5 / 2.8, buffer 3%, slippage 4%, max borrow rate 2%, no deposit cap, borrowing on. The test wallets hold too little BTC to open a trove at the 3.0 upper bound, so it sits at 2.8. v5 ran with 2.0 / 2.5 / 3.0.
 
@@ -131,8 +159,8 @@ Changing `slippageBps` also moves the share price. See note 4 under [Manual revi
 
 The owner cannot:
 
-- send BTC, MUSD or fBTC to an address it picks. BTC leaves only to the receiver of a withdraw or redeem, to Mezo as collateral, to the router as swap input, or, on v6, to the vault's own RedeemQueue for a fill. The queue pays each request only to the receiver fixed when it was made. MUSD leaves only to sMUSD, to Mezo as repayment, or to the router.
-- mint or burn anyone's shares.
+- send BTC, MUSD or fBTC to an address it picks. BTC leaves only to the receiver of a withdraw or redeem, to Mezo as collateral, to the router as swap input, or, on v6, to the vault's own RedeemQueue for a fill. The queue pays each request only to the receiver fixed when it was made. MUSD leaves only to sMUSD, to Mezo as repayment, or to the router. On v8 the one exception is protocol revenue. The fee shares go to the recipient the owner sets, and `Booster.sweep` can move what the booster holds, except MEZO.
+- mint or burn anyone's shares. On v8 the vault itself mints the fee shares, at most 20% of profit, and a rise waits 30 days.
 - change the Mezo, sMUSD, router or pool factory addresses. They are immutable.
 - upgrade the vault. It is not a proxy.
 - pause withdrawals or redemptions. There is no pause. The band settings do decide how much collateral stays locked in the states where exits are limited (see [Known risks and limits](#known-risks-and-limits)).
@@ -142,6 +170,7 @@ The owner cannot:
 
 - The guardian is the EOA [`0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE`](https://explorer.test.mezo.org/address/0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE), set in the constructor. Its key is kept apart from the keeper's, which also lives in GitHub Actions secrets.
 - It can call `pauseBorrowing()` and `unwind()`, and on v7 the sleeve's `setPaused(true)`, and nothing else. All three only move the vault toward less risk. A sleeve pause stops new locks, while the running ones still end and come back on schedule.
+- On v8 it can also raise the savings sleeve's `minSpreadBps`, never lower it, and call `unstake()`, which takes every sMUSD out of the gauge and sets the staked share to 0. Only the owner stakes again.
 - It cannot re-enable borrowing, change settings, the keeper or itself, harvest an open trove, or touch ownership.
 - A live role matrix, sent from each role's own address by `eth_call`, passed all 17 checks. Real transactions then showed:
   - the guardian's pause,
@@ -157,6 +186,7 @@ The owner cannot:
 - While the trove is open, only the keeper or the owner can call `harvest(maxIn)`. A stranger cannot sandwich the sale inside their own transaction.
 - A harvest sells only the MUSD above what the loan owes plus a 0.1% cushion. Its minimum BTC output is the PriceFeed price less `slippageBps`.
 - On v7 only the keeper's `roll()` locks new BTC. A lock sized off assets a deposit had just raised would let a depositor steer it, so anyone else's roll only claims, releases and pays the queue. The keeper may also pause new locks, and `scripts/keeper.sh` does so when Mezo Earn's wiring or any of its implementations change.
+- On v8 the keeper, or the owner, also calls the savings sleeve's `harvestMezo(minBtcOut)`, which claims the gauge's MEZO, sends the booster's share and sells the rest. MEZO has no oracle on Mezo, so the keeper names the sale's floor from Mezo Pools' quotes. A bad floor can only lose that week's MEZO, never BTC or MUSD. It also calls the booster's `lock()` and `boost()`, which put MEZO into the one veMEZO lock and vote it for the sleeve's own boost gauges.
 - The keeper has no other power.
 - Safety does not depend on the keeper, because `rebalance()` is open to anyone.
 
@@ -175,7 +205,9 @@ The owner cannot:
 
 On v7 anyone can also call `roll()` once the weekly vote window opens, an hour after Thursday 00:00 UTC. It claims every lock's MUSD fees and BTC rebate, resets and withdraws the locks that ended, parks the MUSD in sMUSD, and fills the queue from BTC the vault holds. A lock Mezo refuses to release emits `RungStuck` and stays counted at face value.
 
-Borrowing is allowed only when `borrowingEnabled` is on, Mezo is not in Recovery Mode, and Mezo's rate is at most `maxBorrowRate`. On v6, the queue must also be empty. A fill that empties the queue always runs, even one that pays 0 BTC, so a dust request cannot hold borrowing shut.
+On v8 anyone can also call the savings sleeve's `snapshot()`, which records sMUSD's `yieldIndex` once a week, and the sleeve's `addBoostGauge(i, factory)`, which opens Mezo's boost gauge for a live lock. Only the lock's owner may open one, the sleeve owns every lock, and Mezo checks the factory against its registry.
+
+Borrowing is allowed only when `borrowingEnabled` is on, Mezo is not in Recovery Mode, and Mezo's rate is at most `maxBorrowRate`. On v8 the realized sMUSD rate since the oldest weekly snapshot must also beat the loan rate, the higher of the trove's and Mezo's rate plus the borrow fee spread over a year, by `minSpreadBps`. With under a day of history the rate reads 0, so a new vault borrows nothing on its first day. On v6, the queue must also be empty. A fill that empties the queue always runs, even one that pays 0 BTC, so a dust request cannot hold borrowing shut.
 
 ### Mezo
 
@@ -236,8 +268,8 @@ These match the README's [Risks and limits](README.md#risks-and-limits) section.
 | Queue order | Requests are paid first come, first served, ahead of instant exits, at the share price of each fill. In a long restricted state the earliest requests take the liquid BTC first. Value per share stays equal, only the order of liquidity changes, which replaces v5's pure pro-rata sharing. A request cannot be cancelled. While one waits, the vault takes no new debt and moves no idle BTC into the trove. |
 | Shares sent to the queue | fBTC transferred straight to the queue address, rather than through `requestRedeem`, is not a request. It is never burned and stays there for good. |
 | Exit during an unlock | An exit, queued or instant, is priced at the unlocked total. A holder who leaves mid-unlock leaves their unreleased part to the holders who stay. |
-| Guardian | It can only pause borrowing or unwind. `unwind()` fails whenever Mezo refuses the close, as in Recovery Mode, so the guardian pauses first. |
-| Pool far from the oracle | If the MUSD/BTC pool can't fill the fee buy-back within the slippage setting, the gap stays. Part of the collateral is then locked until yield covers it or the owner raises slippage (5% at most). The testnet pool sits about 2.6% below the oracle, so testnet uses 4%. |
+| Guardian | It can only pause borrowing or unwind. Up to v7 `unwind()` fails whenever Mezo refuses the close, as in Recovery Mode, so the guardian pauses first. On v8 it repays to the minimum loan instead and the close finishes on the first `rebalance()` Mezo allows. Preflight scenario 43 runs that on live testnet state with only the oracle's price overridden. |
+| Pool far from the oracle | If the MUSD/BTC pool can't fill the fee buy-back within the slippage setting, the gap stays. Part of the collateral is then locked until yield covers it or the owner raises slippage (5% at most). v8 on testnet uses 5%. |
 | Oracle outage | If the price is more than 60 seconds old, Mezo halts borrowing and so does the vault. Deposits and withdrawals revert, `max*` views return 0, and `totalAssets` uses the last price seen. |
 | Liquidation | The loan is liquidated only after a BTC drop of about 56% with nobody calling `rebalance()`. On staging, -50% in one block left it at 125%, and -60% got it liquidated. The vault kept its MUSD and lost only the 200 MUSD liquidation reserve. |
 | Last trove | If the vault holds Mezo's only trove, Mezo never lets it close. Exits stop at the collateral the 2,000 MUSD minimum needs. The vault also covers a Mezo-side edge case where the last trove cannot take a repayment. Exits then release collateral only above 200% of today's debt. |
@@ -246,7 +278,11 @@ These match the README's [Risks and limits](README.md#risks-and-limits) section.
 | Mainnet economics | Not a security bug, but it decides when borrowing is safe to turn on. At the README's numbers the strategy roughly breaks even on mainnet. MUSD also trades about 1% under the oracle, which would make a new vault trove the first redemption target. A mainnet launch waits until both improve, with borrowing off by default. v6 deploys with `borrowingEnabled` off, so a mainnet deployment holds plain BTC until the owner turns borrowing on through the timelock. |
 | Locked BTC (v7) | Up to the sleeve's share is locked for up to `lockWeeks` weeks, 5% and 4 weeks on testnet. An exit larger than the liquid part waits in the queue for the next lock to end. No new lock happens while a request waits. |
 | Mezo Earn changes (v7) | A Voter swap leaves a voted lock unable to withdraw until Mezo re-adds the old voter as a secondary one. The local test showed `RungStuck` for that lock, the other locks unaffected, and a clean release after `addSecondaryVoter`. A killed gauge stops new locks, while running locks still end and are withdrawn. |
-| Rebate catch-up (v7) | Found by the independent check. The first veBTC write after the Thursday flip pays veBTC's global checkpoint catch-up. A rebate claim that is that first write needs 665k gas locally, more than its 600k budget, against 414k with a fresh checkpoint. Each failed claim reverts its own catch-up, so that roll skips every lock's rebate. On testnet, the first veBTC write after each of the last six flips came at 03:00 UTC or later, after a 01:00 roll, so it would hit every week. The rebates stay claimable. A lock that has ended and still can't claim is released after the one-day grace, and gives up its unclaimed rebates. Mitigation: `scripts/keeper.sh` calls veBTC's permissionless `checkpoint()` right before each roll, which on testnet estimated at 192k. The fix for the next deployment is built. `collect()` runs `ve.checkpoint()` on its own 1M budget before any claim. All 30 distinct local tests pass on it, including the verifier's defect tests (46 runs, since one suite inherits another), and the heaviest roll stays at 15 precompile calls. Principal is never at risk. |
+| Rebate catch-up (v7) | Found by the independent check. The first veBTC write after the Thursday flip pays veBTC's global checkpoint catch-up. A rebate claim that is that first write needs 665k gas locally, more than its 600k budget, against 414k with a fresh checkpoint. Each failed claim reverts its own catch-up, so that roll skips every lock's rebate. On testnet, the first veBTC write after each of the last six flips came at 03:00 UTC or later, after a 01:00 roll, so it would hit every week. The rebates stay claimable. A lock that has ended and still can't claim is released after the one-day grace, and gives up its unclaimed rebates. Mitigation: `scripts/keeper.sh` calls veBTC's permissionless `checkpoint()` right before each roll, which on testnet estimated at 192k. Fixed in v8: `collect()` runs `ve.checkpoint()` on its own 1M budget before any claim, and the coverage suite's rebate tests now assert the fix. Principal is never at risk. |
+| Spread guard inputs (v8) | The savings rate is sMUSD's `yieldIndex` growth since the oldest of four weekly snapshots. Anyone can donate MUSD to sMUSD through its public `receiveProtocolYield` and lift the index. Faking one point a year over a 4-week window costs about 0.08% of the whole sMUSD supply, and all it buys is the vault borrowing at a loss. A new vault waits a day before it borrows, and its window is short until the ring fills. |
+| Pool far from the oracle (v8 harvest) | On 2026-11-10 the testnet MUSD/BTC pool priced BTC 5 to 7% above the oracle, so MUSD sold there fetches less BTC than the oracle says. Harvests and preflight's harvest scenarios refuse that sale at 1% to 5% slippage. The vault keeps the MUSD and sells it once the pool comes back, which is the slippage bound working. The same flip made the fee buy-back easy to fill. |
+| MEZO rewards (v8) | MEZO has no oracle on Mezo, and on testnet the only MEZO pool holds about $54. The keeper names the sale floor, and testnet sends every MEZO to the booster instead (`boostBps` 10,000). The veMEZO lock is permanent, so that MEZO stays in the booster for good. It counts toward no share price, and its value reaches holders only as boosted veBTC fees. |
+| Staked sMUSD (v8) | Staked sMUSD earns MEZO instead of its own MUSD yield, which goes to the gauge's veBTC voters. That trade is set by `stakeBps` through the timelock. A gauge Mezo kills refuses new stakes, and `park()` then leaves the sMUSD unstaked without reverting. Withdrawals from the gauge have no lock or alive check. |
 | Other reward tokens (v7) | The sleeve claims MUSD only. The testnet bribe contract also lists MEZO, mUSDT and mFBTC. None were paid in the last three epochs, and any that are stay unclaimed once a lock is withdrawn. |
 | Owner powers | See the trust model. The owner cannot move user funds. |
 
@@ -368,6 +404,21 @@ All 32 v5 findings above appear again on v6, in the same functions and with the 
 | 65 | costly-loop | Informational, Medium | `RedeemQueue.sol` `_claim` L155-L167 | Accepted by design | The loop is bounded by `MAX_CLAIMS = 16` per call. |
 | 66 | missing-inheritance | Informational, High | `Vault` should inherit `IEscrow` | Accepted by design | `IEscrow` is the queue's one-function view of the vault. Inheriting it would change no bytecode that matters. |
 
+### v8 run
+
+The same Slither 0.11.6 on 2026-11-10, run on the vault, the savings sleeve, the veBTC sleeve and the booster, with the libraries they import.
+- **Totals:** 143 unique findings: 5 High, 46 Medium, 78 Low and 14 Informational. None is a true positive.
+- **High, `weak-prng`:** `block.timestamp % WEEK` in `roll()` and `_revote()`. This finds the Thursday boundary, and nothing uses it as randomness.
+- **High, `reentrancy-eth`:** `rebalance()`, which is `nonReentrant`. Its external calls go to Mezo's contracts and to the vault's own sleeves, the same pattern triaged on v7.
+- **Medium, on the new code:**
+  - **`incorrect-equality`:** zero checks in `savingsRate`, `harvestMezo`, `_repayTo` and `Booster.lock`.
+  - **`uninitialized-local`:** the savings sleeve's `gauge_`, which is meant to stay zero without a voter.
+  - **`unused-return`:** `claimYield()` and `sleeve.rungs()`. Their values are read from balances or ignored on purpose.
+  - **`reentrancy-no-eth`:** `Booster.lock()`, keeper or owner only, which calls Mezo's veMEZO.
+- **The coverage suite found two bugs before release, both now fixed with regression tests:**
+  - a deposit-and-exit round trip during an unlock could raise the fee's high-water mark;
+  - an ended lock waiting in its slot made `boost()` revert.
+
 ### v7 run
 
 Same tools and command on the v7 sources. `src/Vault.sol` now also imports `VeSleeve.sol` and the linked `SystemMath.sol`: 42 contracts, 102 detectors.
@@ -414,6 +465,11 @@ These come from reading `Vault.sol` and `IMezo.sol` line by line. The interface 
 ## How the code was tested
 
 There are three proof methods, plus this Slither run. [EVIDENCE.md](EVIDENCE.md) collects every v5 result and link.
+
+**v8**
+- **Coverage on Mezo's real code:** 155 tests, listed in [`coverage/README.md`](coverage/README.md). The vault is at 98.49% of lines and 96.55% of branches. Two bugs were found and fixed before release: a fee high-water mark that a deposit-and-exit round trip could erase, and an ended lock that blocked the boost.
+- **Preflight on live testnet:** scenarios 42 to 46 cover the checkpointed rebate claim, a Recovery Mode unwind with only the oracle's price overridden, the spread guard on the live sMUSD rate, the fee's 30-day wait and staking in the live gauge. All pass. About 24 older scenarios fail at the same steps on v7's code, because the testnet pool prices BTC 5 to 7% above the oracle and the RPC caps a simulated call at 25M gas.
+- **Live testnet transactions**, in the v8 sections of [`deployments/testnet-log.md`](deployments/testnet-log.md): the deploy, the spread guard refusing the first loan, the first roll with its boost gauges and the veMEZO lock, and the handover to the timelock.
 
 **v7**
 - **A local chain of Mezo's verified code** steps through the Thursdays a testnet can't skip. veBTC, the Voter, the VaultGauge, the reward contracts, the RewardsDistributor, both splitters and the booster were compiled unchanged from the testnet explorer's verified sources, each with its own compiler settings. Their 23 runtime codes are byte-identical to testnet, outside immutables and metadata. MUSD, sMUSD and the DEX are the coverage suite's builds of Mezo's code. The only stand-in is the BTC precompile. 17 of 17 tests pass:
@@ -494,7 +550,7 @@ The staging phases ran on several vault versions. The log marks which vault ran 
 What is not covered:
 
 - No third-party audit.
-- No formal verification. Only the two math libraries have Foundry suites so far. Full vault coverage is in progress.
+- No formal verification.
 - Nothing has run on mainnet.
 - No fork tests. The BTC token and the oracle are precompiles, and forks cannot run them.
 - This file does not re-run the 21 scenarios. EVIDENCE.md collects their results.

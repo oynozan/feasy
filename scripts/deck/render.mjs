@@ -1,5 +1,4 @@
 // Renders every <section data-label> in deck.html to app/public/pitch, one 1920x1080 PNG per slide and one PDF
-// Run from here with `npm install` once, then `npm run render`, it drives the local Chrome
 import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

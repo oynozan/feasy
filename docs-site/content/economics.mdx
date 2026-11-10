@@ -184,7 +184,7 @@ Figures checked on 2026-10-25. Mainnet and testnet are kept apart on purpose.
 - MUSD trades about 1% under the oracle. That would make a new vault trove the first redemption target.
 - A mainnet launch waits until both improve. The vault deploys with borrowing off either way, and the [spread guard](/spread-guard) refuses new debt while the loan costs more than savings pay.
 
-**Testnet.** The live vault, v8, runs a 215 / 220 / 225% band, a 2% buffer and a 5% sleeve on a 4-week ladder. Slippage is 5%, because the testnet pool sits under the oracle. 20% of its sMUSD is staked in the sMUSD gauge. Mezo's testnet borrow rate is 1%. The settings are small because the test wallets hold only 0.069 BTC and Mezo's minimum loan is 2,000 MUSD.
+**Testnet.** The live vault, v8, runs a 215 / 220 / 225% band, a 2% buffer and a 5% sleeve on a 4-week ladder. Slippage is 5%, because the testnet pool sits 5 to 7% away from the oracle. 20% of its sMUSD is staked in the sMUSD gauge. Mezo's testnet borrow rate is 1%. The band is tight so ordinary BTC moves make it repay or borrow, and the vault holds only 0.07 BTC against Mezo's 2,000 MUSD minimum loan.
 
 The testnet gauge paid about 45.8k MUSD in the Oct 15 epoch against about 6 units of vote weight. That is a testnet artifact. Do not read it as a sleeve yield. On mainnet the gauge's income is mostly MEZO emissions, spread over about 226 votes.
 

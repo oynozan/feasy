@@ -12,11 +12,11 @@ The live vault is v8 on Mezo testnet, chain id 31611. All six of its contracts a
 | Savings sleeve | [`0xF38BE227B69FBE1D5CC5d41C2d7E362c984041aD`](https://explorer.test.mezo.org/address/0xF38BE227B69FBE1D5CC5d41C2d7E362c984041aD) |
 | Booster, veMEZO lock 947 | [`0xE5611627004b8e64ca40C9ad7FEFF9cdEa83Ab25`](https://explorer.test.mezo.org/address/0xE5611627004b8e64ca40C9ad7FEFF9cdEa83Ab25) |
 | SystemMath library | [`0xAF59E8672F29f76454aC30D9ac0A2503826eb976`](https://explorer.test.mezo.org/address/0xAF59E8672F29f76454aC30D9ac0A2503826eb976) |
-| Owner | The deployer for now, moving to a 24-hour timelock |
+| Owner | [`0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6`](https://explorer.test.mezo.org/address/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6), a 24-hour timelock |
 | Guardian | `0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE` |
-| Keeper | `0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23`, the GitHub Action, once the deployer hands v8 over |
+| Keeper | `0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23`, the GitHub Action |
 
-The vault creates the queue, the veBTC sleeve and the savings sleeve. Their settings belong to the vault's owner. v8 started at block 16686260.
+The vault creates the queue and the veBTC sleeve. The savings sleeve is deployed just before the vault, at the vault's predicted address, and the booster right after. All their settings belong to the vault's owner. v8 started at block 16686260.
 
 ### Retired vaults
 

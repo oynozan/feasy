@@ -4,7 +4,7 @@ Mezo's BTC token and price oracle are precompiles. Forks can't run them. So Feas
 
 | Layer | What it is |
 | --- | --- |
-| Preflight | 42 scenarios, each a single `eth_call` against live testnet contracts. Only Feasy's own code and its BTC balance are injected. |
+| Preflight | 47 scenarios, each a single `eth_call` against live testnet contracts. Only Feasy's own code and its BTC balance are injected. |
 | Live transactions | Real deposits, loans, harvests, exits, queue fills and veBTC locks on testnet, each linked in the deployment logs |
 | Staging | A private copy of Mezo's own MUSD code on testnet, where the price and rate can be moved |
 | Coverage | A Foundry suite on Mezo's real MUSD, savings, DEX and Mezo Earn code. Only the BTC precompile is stood in. |

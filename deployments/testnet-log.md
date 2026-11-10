@@ -382,3 +382,92 @@ executable after 2026-10-26T04:55:19Z
 - `schedule(address,uint256,bytes,bytes32,bytes32,uint256)` https://explorer.test.mezo.org/tx/0x5f555b028cd0caf584c56f2723c2e6c8ef53606fbe5cba59e04463c1f8adc0cc (status 0x1, gas 55990)
 - `execute(address,uint256,bytes,bytes32,bytes32)` https://explorer.test.mezo.org/tx/0x3e5d28fb83a1f11c4b3faa75f553b40384579fae7147ae4d741f9101508bfc96 (status 0x1, gas 59252)
 - Handover done in minutes: v7's owner is 0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719, minDelay 86400 s (24 h), nothing pending, Sourcify exact match. Owner calls go through scripts/timelock.sh, with TARGET=$SLEEVE for the sleeve
+
+### Test copies collect their four ended veBTC locks, 1720 and 1722 ended Oct 29, 1719 and 1721 ended Nov 5, rolled from the deployer since anyone may collect, veBTC checkpointed first as the keeper does
+
+- `checkpoint()` https://explorer.test.mezo.org/tx/0xc8e2858f7bfb64af6ef07b6098d0d37c717f5d7336a8f56374d0873c270095e6 (status 0x1, gas 184160, block 16685032)
+- `roll()` https://explorer.test.mezo.org/tx/0xf85cdac3d6f81e9c6696d525a1b2e993ac73c43cd4a8e7333d2ba505868ee047 (status 0x1, gas 2698603, block 16685034)
+- `roll()` https://explorer.test.mezo.org/tx/0x59dad23bbfa15c2a3f54d8f11bc5405a00bedb9b83bef8aaf14e8ebed341c58e (status 0x1, gas 1462887, block 16685037)
+- Copy 0x8E1c…C6a8 collected 0.9216 MUSD of gauge fees from its two locks plus their BTC rebates, withdrew 0.00025 BTC from each of 1722 and 1721 and parked the MUSD in sMUSD. Its sleeve now holds no lock and no principal.
+- Copy 0xeDb4…075c collected 1.1148 MUSD of gauge fees plus the BTC rebates, withdrew 0.0003 BTC from each of 1720 and 1719, and parked the MUSD in sMUSD. Its sleeve now holds no lock and no principal.
+
+### Vault v8, v7 plus the spread guard, the Recovery Mode unwind, the high-water-mark fee, the savings sleeve staking in the sMUSD gauge and the veMEZO booster
+
+- SystemMath went out twice when forge's receipt poll dropped during a long compile: 0xAF59E8672F29f76454aC30D9ac0A2503826eb976 is the one linked, 0x1456517045Fd66Ac6D95D303AfE7B516E369172d is an identical unused copy
+- Vault deployed https://explorer.test.mezo.org/address/0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2 (queue 0xFEAa1083F3F5cBcBec51B2c12491E8474F230825, sleeve 0x47fE5D3C539314ea299E96a15d5f8D2956b414EC, savings sleeve 0xF38BE227B69FBE1D5CC5d41C2d7E362c984041aD, booster 0xE5611627004b8e64ca40C9ad7FEFF9cdEa83Ab25, SystemMath 0xAF59E8672F29f76454aC30D9ac0A2503826eb976, block 16686260) tx https://explorer.test.mezo.org/tx/0xa5f476e3805217d5ce9cc85f845b0e0ae5a69f222288a8c0c4684e083fafeefb
+
+### v8 settings: band 2.15 / 2.20 / 2.25 so real BTC moves trigger the band, buffer 2%, slippage 5%, a 5% sleeve on a 4 week ladder, a fifth of the sMUSD staked in the gauge, every MEZO to the booster, a 10% fee that waits 30 days, borrowing on
+
+- `setParams(uint256,uint256,uint256,uint256,uint256,uint16,uint256)` https://explorer.test.mezo.org/tx/0x8160e748f819f5ec44ee832324213d6c8539c86f866f9c35ff9f990cf882cd8c (status 0x1, gas 56458, block 16686270)
+- `setSleeve(uint16,uint256,uint8)` https://explorer.test.mezo.org/tx/0x7b5a25ca351120811a463a6f67c99fd89488d7f09dcaa445f91d4933cbbe80a7 (status 0x1, gas 37348, block 16686271)
+- `setStake(uint16)` https://explorer.test.mezo.org/tx/0xd6be9d2809477f7446001f8d5ead3ee0efb9258b964005d7b19c5d8917d7e34c (status 0x1, gas 67607, block 16686273)
+- `setBooster(address,uint16)` https://explorer.test.mezo.org/tx/0x30be50cc6e66ef7e041569f7d0950955fea37b3c3cf9455496aff806a6ef1d8c (status 0x1, gas 34841, block 16686274)
+- `setFee(uint16,address)` https://explorer.test.mezo.org/tx/0x372dfc2274d4a16cac59911addb367d005391378510645027dac371d3009afb8 (status 0x1, gas 48465, block 16686276)
+- `setBorrowingEnabled(bool)` https://explorer.test.mezo.org/tx/0x3680e6b3120f75a9cc436ccb33ad280c34c827d120078ac94d43c5a88b4774e4 (status 0x1, gas 50610, block 16686277)
+
+### v7 retires: the guardian unwinds its live trove on Mezo's contracts and pauses new veBTC locks
+
+- `unwind()` https://explorer.test.mezo.org/tx/0xf504500badf0ca8da50a2ef03bd8ac0d6967e12aadba11b908d19dac6048938b (status 0x1, gas 424865, block 16686285)
+- `setPaused(bool)` https://explorer.test.mezo.org/tx/0x5f02fe2a39571fe07c85be82cb1f135cb3ac45d24a0bc7a2f01e844217e383ac (status 0x1, gas 36975, block 16686287)
+
+### Holders move from v7 to v8: the liquid part now, the part locked in veBTC through v7's exit queue
+
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x1909c332a98d004422947750d15f0d9825e03c8372e92d4e071a4c653ff906b5 (status 0x1, gas 142561, block 16686292)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x3972547a6b211d0c72033e9e1b64a81a8baefa610ccfe34cd7f8658f6a5b7c56 (status 0x0, gas 129470, block 16686294)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x72cf92dc89ca1ea5cf99325bad9185cf7a613b12ce9db4f79f5f496b0e3d2a56 (status 0x1, gas 224401, block 16686301)
+
+### Holders move from v7 to v8: the liquid part now, the part locked in veBTC through v7's exit queue
+
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x7f073fe7b6cbb5c3752c636276bf57e42479d3c132be16d521f81640b110e75d (status 0x1, gas 224379, block 16686305)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0xd6b157ef3644bd06cf9506f6ea3297607aad5b166e27655378db128f99f7c41a (status 0x0, gas 224839, block 16686307)
+
+### Holders move from v7 to v8: the liquid part now, the part locked in veBTC through v7's exit queue
+
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x19921ad3b4ee9559b94e301668df3d9040bbf6ed8044974957c01b6387ad712e (status 0x1, gas 221758, block 16686318)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0xa4592f7cb48fdfcc1550ab42e35eb0ec8ba4390097e63b5176fe479b694eee38 (status 0x1, gas 221647, block 16686319)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x5fc42a0bdc20f2e1935b4517a5cfcf42c95b11fa57a1f487e5b533a2f6d57569 (status 0x1, gas 211284, block 16686321)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0xabfadb1103a495fb98658e526d18d7484e61b56d2005eca488b83c4f9d2d034f (status 0x0, gas 221884, block 16686323)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0xc22d6ee67bf04b6efc8a763f0dd8c12ec86bef395ddf73e4ebcbd69385aae065 (status 0x1, gas 221884, block 16686338)
+- `requestRedeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x5b842753ef4921e07278972ad77df83b44fc4d2a3b31c5b2ee242552e78ff33a (status 0x1, gas 307006, block 16686340)
+- `depositBTC(address)` https://explorer.test.mezo.org/tx/0xd0ed7bdc21d98643d46f88c6f73483d420c49b223ab61e35de304314fe8d6573 (status 0x1, gas 354802, block 16686342)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x942477f84bf742d53142947058fbd6aad62cdbe2157a7ddb96399b4faa1472c4 (status 0x1, gas 222957, block 16686344)
+- `requestRedeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x1bc58a1bf30002747568c320f940718c63df4259429b4e3872827671c0106aa8 (status 0x1, gas 255706, block 16686346)
+- `depositBTC(address)` https://explorer.test.mezo.org/tx/0xe4d8f15322962e13bcfdadf3a646042ef130c78ed9c765181822a0f4a75eff13 (status 0x1, gas 253264, block 16686347)
+- `redeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0xce0e5075bd6b06f0b0da191fe787be513cf1b2c469d4f23e86e1df2d26d9cebf (status 0x1, gas 226131, block 16686349)
+- `requestRedeem(uint256,address,address)` https://explorer.test.mezo.org/tx/0x0d990e3b8f3a280c410d2fb8e6bb735357cb977e95d9ee175365f55fc139280e (status 0x1, gas 255706, block 16686351)
+- `depositBTC(address)` https://explorer.test.mezo.org/tx/0x03fb8138c47c38ae0fb0a93c6860f1eb8d1ec2659e5cf308bc4ccb4e2e0f7b64 (status 0x1, gas 253264, block 16686353)
+
+### v8 first roll and the veMEZO boost: the keeper locks the 5% sleeve, the sleeve opens a boost gauge for each lock, the deployer seeds the booster with 100 testnet MEZO as treasury, the booster locks it as permanent veMEZO and votes it for both locks
+
+- `roll()` https://explorer.test.mezo.org/tx/0x93ad616f527e1e2134f7cdda01bc7d509fd88891e985e604da9aa6efc7377faa (status 0x1, gas 4750000, block 16686359)
+- `addBoostGauge(uint256,address)` https://explorer.test.mezo.org/tx/0x8e587a192e033575869956cbd866ee16a70077007c023f5eeba97ab1f5ff94f2 (status 0x1, gas 2523739, block 16686366)
+- `addBoostGauge(uint256,address)` https://explorer.test.mezo.org/tx/0xbb7690351e3a18b7bc4668e37a29e30ee767f967bd00f9990551f118b5a6a489 (status 0x1, gas 2523739, block 16686367)
+- `transfer(address,uint256)` https://explorer.test.mezo.org/tx/0x591bc4100d47203a11517e3941815d023de52f4bd8b48d12a475137ab5a87fc5 (status 0x1, gas 25552, block 16686368)
+- `lock()` https://explorer.test.mezo.org/tx/0x51815dff5c4b6a3bae6284e57bf851b430862aec3f2ef4fdc766f9a4e9e87372 (status 0x1, gas 719670, block 16686369)
+- `boost()` https://explorer.test.mezo.org/tx/0xcfcffdb1790453bb29e6e9b1d5cd06b4b6404575bf4037dac40539f0d28cbae6 (status 0x1, gas 1737104, block 16686371)
+- The first roll locked 0.003252 BTC as veBTC 1737 (ends Nov 26) and 1736 (ends Dec 3), both voting for the sMUSD gauge. Each got a boost gauge (2.52M gas each), 100 MEZO became the permanent veMEZO 947, and its vote lifted 1737 to a 1.041x boost and 1736 to 1.028x. Their sMUSD gauge votes rose from 917,996 to 955,607 and from 1,324,514 to 1,362,126. A 5x boost needs far more veMEZO against testnet's veMEZO supply, which the savings sleeve's gauge rewards add week by week.
+
+### v8 spread guard, live: borrowing is on and the vault holds 0.065 BTC, yet rebalance opens no loan, because the savings sleeve has under a day of sMUSD history and reads its rate as 0 against a 110 bps loan rate
+
+- `rebalance()` https://explorer.test.mezo.org/tx/0xb196c724c091cbf231122c3bb2b2234a44aa42c560ec8dfdd18186201e62d592 (status 0x1, gas 385237, block 16686384)
+
+### v8 becomes the live vault, deployments/testnet.env points at it and v7 stays in deployments/testnet-v7.env
+
+### v8's keeper moves to the GitHub Action's wallet, the local deployer loop stops
+
+- `setKeeper(address)` https://explorer.test.mezo.org/tx/0xafd2f9a52351b74d3ac1c40064a13284f0c28683149935f35688b7a4d27a1d17 (status 0x1, gas 30744, block 16698500)
+
+### v8 ownership moves to its own 24 hour timelock, deployed at zero delay so the accept and the delay run at once
+
+- TimelockController (OpenZeppelin 5.7) 0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6 tx https://explorer.test.mezo.org/tx/0x9e89ac3ffe8db3ec79ae53d168481b606a559094e00423ddc9dbedce575a0d06, proposer the deployer, anyone can execute, no admin
+- `transferOwnership(address)` https://explorer.test.mezo.org/tx/0xab63897960b36e37d5366a280c70b092bfd3b02ab4c7e5c660729a0b31adae4a (status 0x1, gas 49246, block 16698534)
+- `schedule(address,uint256,bytes,bytes32,bytes32,uint256)` https://explorer.test.mezo.org/tx/0x0f615c817b641ff9beaf6fa70b7741ff14777ae635c42091d60ef9136b71f2f6 (status 0x1, gas 55576, block 16698538)
+- `execute(address,uint256,bytes,bytes32,bytes32)` https://explorer.test.mezo.org/tx/0xfa115d4c27f0b53841f436ac6c18db782ecff6339128d792252ec87b769fbedd (status 0x1, gas 45570, block 16698540)
+- `schedule(address,uint256,bytes,bytes32,bytes32,uint256)` https://explorer.test.mezo.org/tx/0xf10de49636976d03cbeef1a49b85225dfc5fcdb43fede09a6219eabf44a2547f (status 0x1, gas 56014, block 16698541)
+- `execute(address,uint256,bytes,bytes32,bytes32)` https://explorer.test.mezo.org/tx/0x91b416ed04de63035d39fd4106d4f4a7868cb0d77d4abd351d962b6a3ed0107a (status 0x1, gas 59309, block 16698543)
+- Handover done in minutes: v8's owner is 0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6, minDelay 86400 s (24 h), nothing pending, Sourcify exact match https://repo.sourcify.dev/31611/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6. Owner calls go through scripts/timelock.sh, with TARGET=$SLEEVE, $SAVINGS_SLEEVE or $BOOSTER for those parts
+
+### Alice and Bob deposit the BTC their v7 queue claims paid out, which lifts v8 above the BTC Mezo needs for its 2,000 MUSD minimum loan at the 2.25 upper band
+
+- `depositBTC(address)` https://explorer.test.mezo.org/tx/0xe946b450f6a569b59a140e4fa0f8ec8fb773917594c08d21ab47f28bb48f63b5 (status 0x1, gas 146757, block 16698771)
+- `depositBTC(address)` https://explorer.test.mezo.org/tx/0x7ac9657c95acc52bac40a6a70ff873aa685ad3f22bd1b0647664b9e1ad0d2081 (status 0x1, gas 146757, block 16698772)
