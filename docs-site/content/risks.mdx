@@ -17,14 +17,15 @@ The v5 code had four independent review passes and the staging phases. v6 had a 
 
 ## Yield
 
-- **Spread.** The loan side earns only while sMUSD pays more than the loan costs. On mainnet today they roughly cancel out. See [Economics](/economics#mainnet-and-testnet-today).
+- **Spread.** The loan side earns only while sMUSD pays more than the loan costs. On mainnet today they roughly cancel out. See [Economics](/economics#mainnet-and-testnet-today). The [spread guard](/spread-guard) stops new borrowing when the spread is gone, but an open loan stays until it is repaid or unwound.
+- **Fee.** The owner can raise the performance fee up to 20%. A rise waits 30 days, longer than the slowest exit.
 - **Timing.** Profit reaches the share price over 7 days. A payout that accrued while one group held is released to whoever holds the week after. Small losses leave the share price flat and slow the release.
 - **Borrowing off by default.** New vaults deploy with borrowing off. Until the owner turns it on, deposits sit idle and earn nothing.
 
 ## Liquidity
 
 - **Locked BTC.** Up to the sleeve's share of the BTC is locked for up to `lockWeeks` weeks. An exit larger than the liquid part waits for the next lock to end.
-- **Recovery Mode.** Mezo blocks collateral withdrawals. Instant exits are limited to idle BTC. Larger exits wait in the queue.
+- **Recovery Mode.** Mezo blocks collateral withdrawals. Instant exits are limited to idle BTC. Larger exits wait in the queue. `unwind()` takes the loan down to Mezo's minimum at once and closes it when Mezo allows, see [Recovery Mode unwind](/recovery-mode).
 - **Queue order.** Requests are paid first come, first served. A request cannot be cancelled.
 - **Last trove.** If the vault holds Mezo's only trove, Mezo never lets it close. Exits stop at the collateral the 2,000 MUSD minimum needs.
 - **Oracle outage.** If the price is more than 60 seconds old, Mezo halts borrowing and so does the vault. Deposits and withdrawals revert until it is fresh.
@@ -33,7 +34,13 @@ The v5 code had four independent review passes and the staging phases. v6 had a 
 
 - veBTC, the Voter and the booster are upgradeable. The sleeve checks its wiring before every new lock, and the keeper pauses new locks when they change.
 - If Mezo swaps the Voter, a voted lock cannot be withdrawn until Mezo re-adds the old voter as a secondary one.
-- The rebate gas limit after a quiet Thursday flip is covered by the keeper's checkpoint. See [veBTC sleeve](/vebtc-sleeve#safety).
+- The rebate gas limit after a quiet Thursday flip is fixed in v8. See [veBTC sleeve](/vebtc-sleeve#safety).
+
+## MEZO
+
+- **Sale floor.** MEZO has no oracle on Mezo, so the keeper names the floor of each MEZO sale. A bad floor only costs MEZO income.
+- **Staking trade.** Staked sMUSD gives its MUSD yield to the gauge's voters for MEZO. The vault's veBTC only earns back its vote share.
+- **Mezo's contracts.** The gauge, veMEZO and the BoostVoter are Mezo's. If the gauge is killed, staking stops and the sMUSD keeps its own yield. The guardian can unstake everything.
 
 ## Keys
 

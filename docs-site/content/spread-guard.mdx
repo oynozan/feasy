@@ -1,0 +1,64 @@
+import { Callout } from "nextra/components";
+
+# Spread guard
+
+The vault only takes on new debt while sMUSD pays more than the loan costs. The check runs on chain, inside every `rebalance()`.
+
+## The savings rate
+
+sMUSD has no rate getter, but it has `yieldIndex()`, the MUSD paid per sMUSD so far, scaled by $10^{18}$. The [savings sleeve](/mezo-loop) snapshots that index once a week and keeps the last four. The savings rate is the index growth since the oldest snapshot:
+
+$$
+r_s = \frac{I_{\text{now}} - I_{\text{oldest}}}{10^{18}} \cdot \frac{1\ \text{year}}{t_{\text{now}} - t_{\text{oldest}}}
+$$
+
+- It is a realized rate, what sMUSD actually paid, not a quote.
+- The window grows to about four weeks, so one unusual payout moves it little.
+- It reads 0 until a day of history exists, and borrowing waits until then.
+
+Anyone can call `snapshot()`. Every rebalance calls it too, through `park()`.
+
+## The loan rate
+
+New debt costs the higher of the trove's rate and Mezo's current rate, plus the one-time borrow fee spread over a year:
+
+$$
+r_b = \max(r_{\text{trove}},\ r_{\text{system}}) + f
+$$
+
+With a 1% rate and the 0.1% fee, that is 1.1%.
+
+## The rule
+
+$$
+\texttt{spreadOk} \iff r_s \ge r_b + \texttt{minSpreadBps}
+$$
+
+The vault opens a loan or borrows more only when all of these hold:
+
+- borrowing is on;
+- Mezo is not in Recovery Mode;
+- no exit is waiting in the queue;
+- Mezo's rate is at most `maxBorrowRate`;
+- `spreadOk()` is true.
+
+An open loan is not repaid when the spread turns. It just stops growing. If BTC falls, the vault still repays from savings to stay in its band. To close the loan, the guardian or the owner calls [`unwind()`](/recovery-mode).
+
+## Who sets the margin
+
+| Caller | `minSpreadBps` |
+| --- | --- |
+| Owner, through the 24-hour timelock | Any value |
+| Guardian | Only higher, since a higher margin only means less borrowing |
+
+Testnet runs with a margin of 0.
+
+<Callout>
+The app's pool page shows the guard in its Mezo loop pane. Borrowing reads **On**, **Waiting** for a day of history, **Paused** when the spread is too thin, **Off** when borrowing is turned off, or **Closing** during a [Recovery Mode unwind](/recovery-mode).
+</Callout>
+
+## What it reads today
+
+On Nov 3, testnet's sMUSD paid about 116% a year over 9.6 days against a 1.1% loan. So on testnet the guard lets the vault borrow once its first day of history is in.
+
+On mainnet, savings and the loan cost have been close. There the guard keeps a vault from borrowing whenever the loan would cost more than the savings pay.

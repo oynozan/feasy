@@ -1,0 +1,90 @@
+import { Callout } from "nextra/components";
+
+# Business model
+
+Feasy charges one fee: a share of the BTC profit the vault actually earns. There is nothing on deposits, withdrawals or assets held.
+
+| Setting | Value |
+| --- | --- |
+| Performance fee, `feeBps` | 10% of profit |
+| Cap in the contract | 20% |
+| A rise | Waits 30 days, longer than the slowest exit |
+| A cut | Applies at once |
+| Paid to | The [Booster](/mezo-loop#the-booster), as fBTC shares |
+
+<Callout>
+On testnet the 10% fee starts on Dec 10, 2026. Until then `feeBps` is 0 and `nextFeeAt` shows the date.
+</Callout>
+
+## How the fee is taken
+
+Every deposit, withdrawal, rebalance, harvest and sync runs a checkpoint. It compares the vault's raw assets with the total it recorded last time. A gain first wins back earlier losses, and only the rest pays the fee:
+
+$$
+\text{fee} = \varphi \cdot \max(0,\ g - d)
+$$
+
+- $g$ is the gain since the last checkpoint.
+- $d$ is the deficit, the BTC lost and not yet won back.
+- $\varphi$ is `feeBps`.
+
+The fee is minted as fBTC to the fee recipient. Its shares are priced on raw assets, so they take no part of profit that is still unlocking. The rest of the gain reaches holders over 7 days, like any [profit](/economics#profit-unlock).
+
+### Only on new highs
+
+Every loss adds to the deficit, and later gains pay it down before any fee. The deficit is kept per share. A deposit or an exit scales it with the share supply, so nobody can erase it by joining or create one by leaving.
+
+So the fee only applies while the share price is above its previous high. Nobody pays on a loss, or on earning a loss back.
+
+## Revenue
+
+Revenue is the fee on what the pool earns:
+
+$$
+R = \varphi \cdot \text{TVL} \cdot y
+$$
+
+At the design settings the BTC yield is about $y \approx 0.368\,(r_s - r_b)$. That is $(1 - b - s) / \text{CR}$ with a 3% buffer, a 5% sleeve and 250% collateral. See [Economics](/economics#where-the-yield-comes-from).
+
+| TVL | Revenue a year at a 1-point spread | At a 3-point spread |
+| --- | --- | --- |
+| 100 BTC | $2.9k | $8.8k |
+| 1,000 BTC | $29k | $88k |
+| 5,000 BTC | $147k | $442k |
+
+BTC is taken at $80k. A depositor keeps the other 90%:
+
+| Spread | Depositor BTC yield a year |
+| --- | --- |
+| 1 point | 0.33% |
+| 2 points | 0.66% |
+| 3 points | 0.99% |
+| 5 points | 1.66% |
+
+<Callout type="warning">
+These are formulas at assumed rates, not forecasts. Feasy runs on Mezo testnet today.
+</Callout>
+
+## Capacity
+
+Revenue grows with TVL and with Mezo's savings rate. But the loan side can only grow as far as sMUSD's income carries it. Today that is roughly 75 to 280 BTC at a 1-point spread. Past that the [spread guard](/spread-guard) stops new borrowing.
+
+The [Mezo loop](/mezo-loop) is the upside on top: MEZO from the sMUSD gauge, and veMEZO boosting the vault's own veBTC.
+
+## Where the fee goes
+
+The fee shares sit in the Booster as protocol revenue. Only the vault's owner can move them out, through its 24-hour timelock. The Booster's veMEZO lock never leaves it.
+
+## Compared with others
+
+| Product | Fee |
+| --- | --- |
+| Bitcoin staking validators | 3 to 8% |
+| **Feasy** | **10% of profit** |
+| Resolv | 10% of profit |
+| Convex | 17%, capped at 20% |
+| Instadapp Lite | 20% |
+| Acre | 20%, plus a 0.2% withdrawal fee |
+| Morpho and Euler curators | 0 to 50%, usually 0 to 20% |
+
+At 10%, Feasy sits between Bitcoin staking validators and active strategy vaults.

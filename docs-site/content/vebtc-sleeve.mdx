@@ -81,8 +81,12 @@ Anyone can poke a vote down to its current weight. Near the end of a week that c
 - A lock Mezo refuses to release keeps counting at face value. It emits `RungStuck` and is retried every roll.
 - The guardian, the keeper or the owner can pause new locks. Only the owner resumes them. Running locks still end on schedule.
 
-<Callout type="warning">
-**Known limit in v7.** A rebate claim that is veBTC's first write after a quiet Thursday flip also pays veBTC's weekly catch-up. That can run past its gas budget, and the roll then skips the rebates. The keeper calls veBTC's `checkpoint()` before every roll, which prevents it. The fix inside the sleeve is built for the next deployment. Only rebate yield is ever at stake, never principal.
+<Callout>
+**Fixed in v8.** In v7, a rebate claim that was veBTC's first write after a quiet Thursday flip also paid veBTC's weekly catch-up. That could run past its gas budget and skip the rebates. v8's sleeve calls veBTC's `checkpoint()` itself before its claims, on its own gas budget. The keeper still checkpoints before every roll. Only rebate yield was ever at stake, never principal.
 </Callout>
+
+## The boost
+
+v8's [Booster](/mezo-loop#the-booster) votes its veMEZO for each lock's boost gauge on Mezo's BoostVoter. A boosted lock votes with up to 5 times its weight, so it takes a larger share of the sMUSD gauge's fees. `addBoostGauge(i, factory)` creates a lock's boost gauge.
 
 The sleeve claims MUSD from the gauge's fee and bribe rewards. The bribe contract also lists MEZO, mUSDT and mFBTC. None were paid in the last three epochs. Any that are would stay unclaimed.

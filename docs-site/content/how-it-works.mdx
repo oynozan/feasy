@@ -12,13 +12,13 @@ You send BTC, native or the BTC ERC-20. You get fBTC shares at the current share
 
 ### Borrow
 
-`rebalance()` adds the spare BTC to the vault's one shared trove. It borrows MUSD at a 250% collateral ratio, so the loan is 40% of the BTC's value. All of that MUSD goes into sMUSD.
+`rebalance()` adds the spare BTC to the vault's one shared trove. It borrows MUSD at a 250% collateral ratio, so the loan is 40% of the BTC's value. All of that MUSD goes into sMUSD. It only borrows while sMUSD pays more than the loan costs, see [Spread guard](/spread-guard).
 
 Mezo adds a 0.1% fee to every new loan. The vault buys that MUSD back with BTC right after borrowing. So the MUSD it holds always covers what the loan owes.
 
 ### Save
 
-sMUSD pays savers from the interest and fees that every MUSD borrower pays. The vault's MUSD earns that rate.
+sMUSD pays savers from the interest and fees that every MUSD borrower pays. The vault's MUSD earns that rate. Part of the sMUSD is staked in Mezo's sMUSD gauge for MEZO, see [Savings sleeve and MEZO](/mezo-loop).
 
 ### Harvest
 
@@ -49,7 +49,7 @@ flowchart LR
 - **Above 300%,** it borrows more. It only does so while Mezo's rate is at most 2%.
 - **Near the minimum,** if the loan would fall under Mezo's 2,000 MUSD minimum, the vault closes it.
 
-The design band is 200 / 250 / 300%. The testnet vault runs 220% with a 200 / 240% band, because its wallets are small. The [Economics](/economics) page has the math.
+The design band is 200 / 250 / 300%. The testnet vault runs 220% with a tight 215 / 225% band, because its wallets are small. The [Economics](/economics) page has the math.
 
 ## Who can call what
 
@@ -63,5 +63,7 @@ The design band is 200 / 250 / 300%. The testnet vault runs 220% with a 200 / 24
 | `processQueue()` | Anyone | Pays waiting exits, freeing collateral if needed |
 | `claim(ids)` | Anyone | Sends filled requests' BTC to their receivers |
 | `roll()` | Anyone, but only the keeper's roll locks new BTC | Runs the weekly veBTC cycle |
+| `harvestMezo(minBtcOut)` | Keeper or owner | Sells the gauge's MEZO for BTC, or sends it to the veMEZO boost |
+| `unwind()` | Guardian or owner | Closes the loan, in Recovery Mode in two steps |
 
 Harvest is restricted while the trove is open. That way nobody can sandwich the swap inside their own transaction. Only the keeper's roll locks new BTC, so a deposit made just before it cannot size a lock.

@@ -8,7 +8,7 @@ import { Cards } from "nextra/components";
 
 Feasy is a BTC savings vault on [Mezo](https://mezo.org). You deposit BTC and get more BTC back.
 
-The vault borrows MUSD against the pooled BTC. It parks that MUSD in Mezo's MUSD Savings Vault. Then it swaps the savings income above the loan cost back into BTC. A small slice of the BTC also sits in veBTC, voting for the savings gauge.
+The vault borrows MUSD against the pooled BTC, but only while savings pay more than the loan costs. It parks that MUSD in Mezo's MUSD Savings Vault. Then it swaps the savings income above the loan cost back into BTC. A small slice of the BTC also sits in veBTC, voting for the savings gauge, and part of the savings earns MEZO.
 
 Your exposure stays plain BTC. The borrowed dollars sit in dollar savings, so there is no leverage on BTC.
 
@@ -19,6 +19,8 @@ flowchart LR
     T -->|MUSD| S[MUSD savings]
     S -->|income above loan cost| H[Harvest]
     H -->|BTC| V
+    S -->|part staked| G[sMUSD gauge]
+    G -->|MEZO sold for BTC| V
     V -->|up to 25%| L[veBTC locks]
     L -->|fees and BTC rebate| V
 ```
@@ -29,9 +31,10 @@ flowchart LR
 | --- | --- |
 | Asset | BTC on Mezo, native or the BTC ERC-20 |
 | Share token | fBTC, an ERC-4626 share priced in BTC |
-| Vault fee | None, no performance, management or treasury fee |
+| Fee | 10% of profit, only above the previous high. Nothing on deposits, withdrawals or assets |
 | Loan | One shared MUSD trove, kept between 200% and 300% collateral |
-| Savings | MUSD Savings Vault (sMUSD) |
+| Savings | MUSD Savings Vault (sMUSD), part staked in its gauge for MEZO |
+| Borrowing | Only while sMUSD pays more than the loan costs |
 | veBTC | Up to 25% of the BTC, in weekly locks |
 | Profit | Reaches the share price over 7 days |
 | Owner | A 24-hour timelock |

@@ -1,29 +1,32 @@
 # Contracts
 
-The live vault is v7 on Mezo testnet, chain id 31611. All contracts are verified on Sourcify with an exact match.
+The live vault is v8 on Mezo testnet, chain id 31611. All six of its contracts are verified on Sourcify with an exact match.
 
 ## Testnet
 
 | Contract | Address |
 | --- | --- |
-| Vault v7 (fBTC) | [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6) |
-| Withdrawal queue | [`0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3`](https://explorer.test.mezo.org/address/0xB4D13C2A94f9bd165CF77eC5C92D174C51ff13C3) |
-| veBTC sleeve | [`0xee76C202a9e43988c55DC86816a6c14211Db209B`](https://explorer.test.mezo.org/address/0xee76C202a9e43988c55DC86816a6c14211Db209B) |
-| SystemMath library | [`0x34df486c93DB9a2A263498df97BDDF04BF1d57f7`](https://explorer.test.mezo.org/address/0x34df486c93DB9a2A263498df97BDDF04BF1d57f7) |
-| Owner, 24-hour timelock | [`0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719`](https://explorer.test.mezo.org/address/0xad37d71330152b1bC58e7f87Eba6Ab6a1fE52719) |
+| Vault v8 (fBTC) | [`0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2`](https://explorer.test.mezo.org/address/0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2) |
+| Withdrawal queue | [`0xFEAa1083F3F5cBcBec51B2c12491E8474F230825`](https://explorer.test.mezo.org/address/0xFEAa1083F3F5cBcBec51B2c12491E8474F230825) |
+| veBTC sleeve | [`0x47fE5D3C539314ea299E96a15d5f8D2956b414EC`](https://explorer.test.mezo.org/address/0x47fE5D3C539314ea299E96a15d5f8D2956b414EC) |
+| Savings sleeve | [`0xF38BE227B69FBE1D5CC5d41C2d7E362c984041aD`](https://explorer.test.mezo.org/address/0xF38BE227B69FBE1D5CC5d41C2d7E362c984041aD) |
+| Booster, veMEZO lock 947 | [`0xE5611627004b8e64ca40C9ad7FEFF9cdEa83Ab25`](https://explorer.test.mezo.org/address/0xE5611627004b8e64ca40C9ad7FEFF9cdEa83Ab25) |
+| SystemMath library | [`0xAF59E8672F29f76454aC30D9ac0A2503826eb976`](https://explorer.test.mezo.org/address/0xAF59E8672F29f76454aC30D9ac0A2503826eb976) |
+| Owner | The deployer for now, moving to a 24-hour timelock |
 | Guardian | `0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE` |
-| Keeper | `0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23` |
+| Keeper | `0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23`, the GitHub Action, once the deployer hands v8 over |
 
-The vault creates the queue and the sleeve. The sleeve's settings belong to the vault's owner.
+The vault creates the queue, the veBTC sleeve and the savings sleeve. Their settings belong to the vault's owner. v8 started at block 16686260.
 
 ### Retired vaults
 
 | Vault | Address | State |
 | --- | --- | --- |
+| v7 | [`0x4DA2eb6942cF136126A630e4C968CE43474c0Db6`](https://explorer.test.mezo.org/address/0x4DA2eb6942cF136126A630e4C968CE43474c0Db6) | Loan unwound, holders moved to v8. The rest pays from its queue as its veBTC locks end on Nov 12 and Nov 19 |
 | v6 | [`0xb7A15aB24483Dfe92056F73279ECF11CE00675db`](https://explorer.test.mezo.org/address/0xb7A15aB24483Dfe92056F73279ECF11CE00675db) | Loan unwound, holders moved to v7 |
 | v5 | [`0x2964612e8976b4003083E6014cA39f5fD7b41f3A`](https://explorer.test.mezo.org/address/0x2964612e8976b4003083E6014cA39f5fD7b41f3A) | Loan closed, holders moved to v6 |
 
-The app shows a Move row for anyone with shares in a retired vault.
+The app shows a Move row for anyone with shares in a retired vault, and an Exit queue row with Claim for a request still waiting there.
 
 ## Source
 
@@ -32,6 +35,8 @@ The app shows a Move row for anyone with shares in a retired vault.
 | [`Vault.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/Vault.sol) | The ERC-4626 vault, the trove, savings and harvests |
 | [`RedeemQueue.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/RedeemQueue.sol) | The first-come, first-served exit queue |
 | [`VeSleeve.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/VeSleeve.sol) | The weekly veBTC ladder |
+| [`SavingsSleeve.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/SavingsSleeve.sol) | The sMUSD, its gauge stake, the savings rate and MEZO sales |
+| [`Booster.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/Booster.sol) | The veMEZO lock, the boost votes and the fee shares |
 | [`ProfitLock.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/ProfitLock.sol) | The 7-day linear profit release |
 | [`SystemMath.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/SystemMath.sol) | Mezo system ratio math, linked to keep the vault under the size limit |
 
@@ -43,10 +48,13 @@ The app shows a Move row for anyone with shares in a retired vault.
 | TroveManager | Debt, collateral, status, rate and Recovery Mode reads |
 | PriceFeed | The BTC price for share pricing and swap limits |
 | HintHelpers, SortedTroves | Insert hints, so large moves never walk the whole trove list |
-| MUSD Savings Vault (sMUSD) | Deposit, withdraw, claim yield, value from the yield index |
-| Mezo DEX Router | Harvests and fee buy-backs in the MUSD/BTC pool |
+| MUSD Savings Vault (sMUSD) | Deposit, withdraw, claim yield, value and the savings rate from the yield index |
+| sMUSD gauge | Stake sMUSD, claim MEZO |
+| Mezo DEX Router | Harvests and fee buy-backs in the MUSD/BTC pool, MEZO sales |
 | veBTC | Create, grow and withdraw locks |
 | Pools Voter | Vote, poke and reset |
 | sMUSD gauge rewards | Fee and bribe rewards in MUSD |
 | RewardsDistributor | The weekly BTC rebate |
 | ChainFeeSplitter | `updatePeriod`, run by the keeper when Mezo has not |
+| veMEZO | The Booster's one permanent lock |
+| BoostVoter | Boost gauges for the veBTC locks, and their boost |
