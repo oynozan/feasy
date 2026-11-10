@@ -1,0 +1,11 @@
+{
+    "name": "feasy-deck",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "render": "node render.mjs"
+    },
+    "dependencies": {
+        "playwright-core": "1.49.1"
+    }
+}

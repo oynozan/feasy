@@ -5,7 +5,12 @@ import { usePathname } from "next/navigation";
 import { Frame, Wordmark } from "./frame";
 
 // The Bitcoin wallet SDKs touch window as soon as they load, so the whole app renders in the browser
-export const ClientApp = dynamic(() => import("./app").then((m) => m.App), { ssr: false, loading: Shell });
+const LazyApp = dynamic(() => import("./app").then((m) => m.App), { ssr: false, loading: Shell });
+
+// The pitch deck stands alone, so the dashboard and its wallets never load behind it
+export function ClientApp() {
+    return usePathname() === "/pitch" ? null : <LazyApp />;
+}
 
 // The same blocks the app opens with, empty, so the first paint already has the final geometry
 function Shell() {

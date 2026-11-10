@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;background:#181717;-webkit-font-smoothing:antialiased;}
+a{color:#181717;text-decoration-color:#f5b400;text-decoration-thickness:3px;text-underline-offset:6px;}
+a:hover{text-decoration-color:#181717;}
+</style>
+</helmet>
+<x-import component-from-global-scope="deck-stage" from="./deck-stage.js" width="1920" height="1080" hint-size="100%,100%">
+
+<section data-label="Title" data-speaker-notes="Feasy is a BTC savings vault on Mezo. Deposit BTC, get more BTC." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:1112px 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f5b400;border-radius:48px;padding:72px;display:flex;flex-direction:column;justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <svg viewBox="0 0 480 560" fill="#181717" style="height:44px;width:auto;"><path d="M0 160 L160 0 L480 0 L360 120 L160 120 L0 280 Z"></path><path d="M0 360 L160 200 L360 200 L240 320 L160 320 L84.853 395.147 L84.853 475.147 L0 560 Z"></path></svg>
+      <span style="font-size:48px;font-weight:700;letter-spacing:-0.02em;line-height:1;">Feasy</span>
+      <span style="background:#f7c95e;color:#4d3d12;border-radius:999px;padding:6px 20px;font-size:28px;font-weight:500;line-height:40px;">Testnet</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:40px;">
+      <h1 style="margin:0;font-size:176px;line-height:0.98;font-weight:700;letter-spacing:-0.035em;text-wrap:balance;">Earn BTC on your BTC.</h1>
+      <p style="margin:0;font-size:44px;line-height:1.3;color:#4d3d12;">A BTC savings vault on Mezo.</p>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-rows:1fr 1fr;gap:16px;">
+    <div style="background:#f8f3f8;border-radius:48px;padding:64px;display:flex;flex-direction:column;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">Built for</span>
+      <span style="margin-top:28px;font-size:64px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;">Mezo buildathon</span>
+      <div style="margin-top:auto;display:flex;gap:12px;">
+        <span style="background:#ece7ec;color:#696669;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Track 1, DeFi</span>
+      </div>
+    </div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:64px;display:flex;flex-direction:column;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">Status</span>
+      <span style="margin-top:28px;font-size:64px;font-weight:700;letter-spacing:-0.02em;line-height:1.1;">Live on testnet</span>
+      <div style="margin-top:auto;display:flex;gap:12px;">
+        <span style="background:#ffdb79;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Vault v8</span>
+        <span style="background:#ece7ec;color:#696669;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Verified on Sourcify</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-label="About me" data-speaker-notes="About 30 seconds. Who I am, 10+ hackathon wins, 7+ years building, what I'm working on now." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:760px 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="border-radius:48px;overflow:hidden;background:#282926;">
+    <img src="assets/ozan.jpeg" alt="Ozan Andaç" style="width:100%;height:100%;object-fit:cover;object-position:50% 40%;display:block;">
+  </div>
+  <div style="display:grid;grid-template-rows:auto 1fr;gap:16px;">
+    <div style="background:#f8f3f8;border-radius:48px;padding:64px;display:flex;flex-direction:column;gap:20px;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">About me</span>
+      <h2 style="margin:0;font-size:104px;line-height:1;font-weight:700;letter-spacing:-0.03em;">Ozan Andaç</h2>
+      <p style="margin:0;font-size:40px;line-height:1.3;color:#696669;">Web3 developer. Building Feasy.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="background:#f5b400;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;justify-content:space-between;">
+        <span style="font-size:32px;font-weight:500;color:#4d3d12;">Hackathon wins</span>
+        <span style="font-size:168px;font-weight:700;letter-spacing:-0.04em;line-height:0.9;">10+</span>
+      </div>
+      <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;justify-content:space-between;">
+        <span style="font-size:32px;font-weight:500;color:#696669;">Years building</span>
+        <span style="font-size:168px;font-weight:700;letter-spacing:-0.04em;line-height:0.9;">7+</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-label="The idea" data-speaker-notes="One line: deposit BTC, get more BTC. Borrowed dollars sit in dollar savings, so your exposure stays plain BTC." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:760px 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f8f3f8;border-radius:48px;padding:64px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">The idea</span>
+    <h2 style="margin:28px 0 0;font-size:88px;line-height:1.02;font-weight:700;letter-spacing:-0.03em;text-wrap:balance;">Deposit BTC, get more BTC.</h2>
+    <p style="margin:40px 0 0;font-size:36px;line-height:1.4;text-wrap:pretty;">The vault borrows dollars against the pooled BTC and saves them. Savings income above the loan cost is swapped back into BTC.</p>
+    <div style="margin-top:auto;display:flex;flex-wrap:wrap;gap:12px;">
+      <span style="background:#ffdb79;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">No leverage on BTC</span>
+      <span style="background:#ece7ec;color:#696669;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Fee only on profit</span>
+      <span style="background:#ece7ec;color:#696669;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">fBTC, an ERC-4626 share</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:center;">
+    <img src="assets/home.png" alt="Feasy home screen" style="width:100%;height:auto;display:block;">
+  </div>
+</section>
+
+<section data-label="How it works" data-speaker-notes="Walk the loop left to right. Mention the veBTC sleeve at the bottom, the next slide shows how it ties into Mezo." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-rows:auto 1fr auto;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;gap:20px;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">How it works</span>
+    <h2 style="margin:0;font-size:72px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;">One loop. Anyone can push each step.</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;">
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="width:80px;height:80px;border-radius:999px;background:#ffdb79;display:grid;place-items:center;font-size:34px;font-weight:500;">1</span>
+      <span style="font-size:48px;font-weight:700;letter-spacing:-0.02em;">Deposit</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Send BTC, get fBTC shares at the current price.</span>
+    </div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="width:80px;height:80px;border-radius:999px;background:#ece7ec;display:grid;place-items:center;font-size:34px;font-weight:500;">2</span>
+      <span style="font-size:48px;font-weight:700;letter-spacing:-0.02em;">Borrow</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">MUSD against the pool at 250% collateral.</span>
+    </div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="width:80px;height:80px;border-radius:999px;background:#ece7ec;display:grid;place-items:center;font-size:34px;font-weight:500;">3</span>
+      <span style="font-size:48px;font-weight:700;letter-spacing:-0.02em;">Save</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Into Mezo's savings vault, a share staked for MEZO.</span>
+    </div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="width:80px;height:80px;border-radius:999px;background:#ece7ec;display:grid;place-items:center;font-size:34px;font-weight:500;">4</span>
+      <span style="font-size:48px;font-weight:700;letter-spacing:-0.02em;">Harvest</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Income above the loan cost is swapped to BTC.</span>
+    </div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="width:80px;height:80px;border-radius:999px;background:#ece7ec;display:grid;place-items:center;font-size:34px;font-weight:500;">5</span>
+      <span style="font-size:48px;font-weight:700;letter-spacing:-0.02em;">Unlock</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Profit reaches the share price over 7 days.</span>
+    </div>
+  </div>
+  <div style="background:#282926;color:#f8f3f8;border-radius:48px;padding:48px 64px;display:grid;grid-template-columns:320px 1fr;gap:32px;align-items:center;">
+    <span style="font-size:40px;font-weight:700;letter-spacing:-0.02em;">veBTC sleeve</span>
+    <span style="font-size:32px;line-height:1.4;">5% of the BTC sits in a four-week veBTC ladder voting for the sMUSD gauge. Fees go to savings, rebates come back as BTC.</span>
+  </div>
+</section>
+
+<section data-label="The Mezo loop" data-speaker-notes="The pool uses each Mezo piece in turn. BTC backs the trove, MUSD goes to sMUSD, part of the sMUSD is staked in the sMUSD gauge for MEZO, and the MEZO is sold for BTC or locked as veMEZO. The veBTC locks vote for the same gauge, so the staked yield comes back as fees, and veMEZO boosts those votes." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-rows:auto 1fr auto;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;gap:20px;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">The Mezo loop</span>
+    <h2 style="margin:0;font-size:72px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;">Every Mezo primitive, working for the same BTC.</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 56px 1fr 56px 1fr 56px 1fr 56px 1fr;">
+    <div style="background:#f5b400;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="font-size:56px;font-weight:700;letter-spacing:-0.02em;">BTC</span>
+      <span style="font-size:30px;line-height:1.4;color:#4d3d12;">The pool's BTC backs one Mezo trove.</span>
+    </div>
+    <div style="display:grid;place-items:center;"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#696669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="font-size:56px;font-weight:700;letter-spacing:-0.02em;">MUSD</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Borrowed against it at 250% collateral.</span>
+    </div>
+    <div style="display:grid;place-items:center;"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#696669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="font-size:56px;font-weight:700;letter-spacing:-0.02em;">sMUSD</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Mezo's savings vault pays the yield.</span>
+    </div>
+    <div style="display:grid;place-items:center;"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#696669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="font-size:56px;font-weight:700;letter-spacing:-0.02em;">Gauge</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">20% of the sMUSD is staked in the sMUSD gauge.</span>
+    </div>
+    <div style="display:grid;place-items:center;"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#696669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg></div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:48px;display:flex;flex-direction:column;gap:28px;">
+      <span style="font-size:56px;font-weight:700;letter-spacing:-0.02em;">MEZO</span>
+      <span style="font-size:30px;line-height:1.4;color:#696669;">Sold for BTC, or locked as veMEZO.</span>
+    </div>
+  </div>
+  <div style="background:#282926;color:#f8f3f8;border-radius:48px;padding:48px 64px;display:grid;grid-template-columns:400px 1fr;gap:32px;align-items:center;">
+    <span style="font-size:40px;font-weight:700;letter-spacing:-0.02em;">veBTC and the boost</span>
+    <div style="display:flex;flex-direction:column;gap:24px;">
+      <span style="font-size:32px;line-height:1.4;">The pool's veBTC votes for the same sMUSD gauge, so the staked sMUSD's yield comes back as fees. veMEZO boosts those locks through Mezo's BoostVoter.</span>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;">
+        <span style="background:#ffdb79;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">About 551k MEZO a week to the gauge</span>
+        <span style="background:#3d3e3a;color:#f8f3f8;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Boost today 1.04×</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-label="Risk controls" data-speaker-notes="The borrowed dollars sit in dollar savings, so BTC exposure has no leverage. These are the guardrails. The spread guard reads sMUSD's realized rate from its yield index and refuses new debt when it falls under the loan cost." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f5b400;border-radius:48px;padding:56px;display:flex;flex-direction:column;justify-content:space-between;">
+    <span style="font-size:32px;font-weight:500;color:#4d3d12;">Risk controls</span>
+    <h2 style="margin:0;font-size:68px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;text-wrap:balance;">Plain BTC exposure, no leverage.</h2>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Drop to liquidation</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">56%</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">BTC fall needed from the 250% target, with nobody rebalancing.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Collateral target</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">250%</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Held in a 200 to 300% band, checked on every rebalance.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Profit unlock</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">7 days</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Joining just before a payout earns nothing extra.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Owner timelock</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">24 h</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Every change is public for a day. Nobody can move user funds.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Spread guard</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">r<sub style="font-size:64px;line-height:0;">s</sub> &gt; r<sub style="font-size:64px;line-height:0;">b</sub></span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Borrowing stops on chain when sMUSD pays less than the loan costs.</span>
+  </div>
+</section>
+
+<section data-label="The app" data-speaker-notes="Deposit with native BTC or tBTC in four steps. The pool view shows where every satoshi sits." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-rows:auto 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;gap:20px;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">The app</span>
+    <h2 style="margin:0;font-size:72px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;">Deposit in four steps. See where every satoshi sits.</h2>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center;">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <img src="assets/deposit.png" alt="Deposit flow" style="width:100%;height:auto;display:block;">
+      <span style="padding-left:48px;font-size:28px;font-weight:500;color:#696669;">Deposit, with BTC or tBTC</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <img src="assets/pool.png" alt="Pool stats" style="width:100%;height:auto;display:block;">
+      <span style="padding-left:48px;font-size:28px;font-weight:500;color:#696669;">Pool stats, live from testnet</span>
+    </div>
+  </div>
+</section>
+
+<section data-label="Economics" data-speaker-notes="Where the yield comes from. The loan side earns the spread between savings and loan cost, scaled by 0.368 at a 3% buffer, a 5% sleeve and 250% collateral. The table is what a depositor keeps after the 10% fee. The veBTC sleeve and MEZO add their own income on top." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:1fr 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="display:grid;grid-template-rows:auto 1fr;gap:16px;">
+    <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;gap:20px;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">Economics</span>
+      <h2 style="margin:0;font-size:64px;line-height:1.05;font-weight:700;letter-spacing:-0.03em;text-wrap:balance;">Yield is the spread between savings and the loan.</h2>
+    </div>
+    <div style="background:#282926;color:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;">
+      <span style="font-size:32px;font-weight:500;color:#c9c4c9;">BTC yield from the loan side</span>
+      <div style="margin-top:auto;display:flex;align-items:center;gap:28px;font-size:64px;font-weight:700;letter-spacing:-0.02em;line-height:1;">
+        <span>y</span>
+        <span>≈</span>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;font-size:44px;">
+          <span>1 − b − s</span>
+          <span style="align-self:stretch;height:4px;background:#f8f3f8;border-radius:2px;"></span>
+          <span>CR</span>
+        </div>
+        <span>×</span>
+        <span style="color:#f5b400;">(r<sub style="font-size:36px;">s</sub> − r<sub style="font-size:36px;">b</sub>)</span>
+      </div>
+      <div style="margin-top:auto;display:grid;grid-template-columns:auto 1fr;gap:12px 28px;font-size:28px;line-height:1.3;">
+        <span style="font-weight:700;">b, s</span>
+        <span style="color:#c9c4c9;">Idle buffer and veBTC sleeve, 3% and 5%</span>
+        <span style="font-weight:700;">CR</span>
+        <span style="color:#c9c4c9;">Target collateral ratio, 250%</span>
+        <span style="font-weight:700;">r<sub style="font-size:24px;">s</sub> − r<sub style="font-size:24px;">b</sub></span>
+        <span style="color:#c9c4c9;">Savings rate minus loan rate</span>
+      </div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-rows:auto 1fr;gap:16px;">
+    <div style="background:#f5b400;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;gap:20px;">
+      <span style="font-size:32px;font-weight:500;color:#4d3d12;">At the design settings</span>
+      <div style="display:flex;align-items:baseline;gap:24px;">
+        <span style="font-size:128px;font-weight:700;letter-spacing:-0.04em;line-height:1;">0.368</span>
+        <span style="font-size:32px;line-height:1.3;color:#4d3d12;">points of BTC yield per point of spread</span>
+      </div>
+    </div>
+    <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">What a depositor keeps, after the 10% fee</span>
+      <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;padding:20px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:28px;font-weight:500;color:#696669;">Spread</span>
+        <span style="font-size:28px;font-weight:500;color:#696669;">BTC yield a year</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;padding:22px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:40px;font-weight:700;">1 point</span>
+        <span style="font-size:40px;">0.33%</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;padding:22px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:40px;font-weight:700;">2 points</span>
+        <span style="font-size:40px;">0.66%</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;padding:22px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:40px;font-weight:700;">3 points</span>
+        <span style="font-size:40px;">0.99%</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;padding:22px 0 0;">
+        <span style="font-size:40px;font-weight:700;">5 points</span>
+        <span style="font-size:40px;">1.66%</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-label="Business model" data-speaker-notes="One fee, 10% of the BTC profit the vault actually earns, and only above the previous high. Revenue grows with TVL and with Mezo's savings rate. Today's sMUSD income carries about 75 to 280 BTC at a 1-point spread, and the guard stops borrowing past that, so the Mezo loop is the upside on top. These are formulas at assumed rates, not forecasts." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:1fr 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f5b400;border-radius:48px;padding:64px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#4d3d12;">Business model</span>
+    <h2 style="margin:28px 0 0;font-size:96px;line-height:1;font-weight:700;letter-spacing:-0.035em;text-wrap:balance;">One fee: 10% of the profit.</h2>
+    <p style="margin:36px 0 0;font-size:32px;line-height:1.4;color:#4d3d12;text-wrap:pretty;">Nothing on deposits, withdrawals or assets held. The fee only applies when the share price is above its previous high, so nobody pays on a loss or on earning one back.</p>
+    <p style="margin:24px 0 0;font-size:32px;line-height:1.4;color:#4d3d12;text-wrap:pretty;">Revenue grows with TVL and with Mezo's savings rate. Today's sMUSD income carries about 75 to 280 BTC at a 1-point spread, and the guard stops borrowing past that.</p>
+    <div style="margin-top:auto;display:flex;flex-wrap:wrap;gap:12px;">
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Capped at 20% in code</span>
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">A rise waits 30 days</span>
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Fee revenue buys the veMEZO boost</span>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-rows:auto 1fr;gap:16px;">
+    <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">Revenue a year at a 10% fee</span>
+      <div style="margin-top:20px;display:grid;grid-template-columns:1.2fr 1fr 1fr;padding:16px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:28px;font-weight:500;color:#696669;">TVL</span>
+        <span style="font-size:28px;font-weight:500;color:#696669;">1-point spread</span>
+        <span style="font-size:28px;font-weight:500;color:#696669;">3-point spread</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;padding:18px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:40px;font-weight:700;">100 BTC</span>
+        <span style="font-size:40px;">$2.9k</span>
+        <span style="font-size:40px;">$8.8k</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;padding:18px 0;border-bottom:2px solid #e1dce1;">
+        <span style="font-size:40px;font-weight:700;">1,000 BTC</span>
+        <span style="font-size:40px;">$29k</span>
+        <span style="font-size:40px;">$88k</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr;padding:18px 0 0;">
+        <span style="font-size:40px;font-weight:700;">5,000 BTC</span>
+        <span style="font-size:40px;">$147k</span>
+        <span style="font-size:40px;">$442k</span>
+      </div>
+      <span style="margin-top:28px;font-size:26px;line-height:1.4;color:#696669;">BTC at $80k, BTC yield 0.368 × spread. Formulas, not forecasts.</span>
+    </div>
+    <div style="background:#282926;color:#f8f3f8;border-radius:48px;padding:48px 64px;display:flex;flex-direction:column;gap:24px;">
+      <span style="font-size:32px;font-weight:500;color:#c9c4c9;">Where 10% sits</span>
+      <div style="margin-top:auto;display:grid;grid-template-columns:1fr auto;gap:10px 32px;font-size:32px;line-height:1.2;">
+        <span style="color:#c9c4c9;">Bitcoin staking validators</span><span>3–8%</span>
+        <span style="color:#f5b400;font-weight:700;">Feasy</span><span style="color:#f5b400;font-weight:700;">10%</span>
+        <span style="color:#c9c4c9;">Resolv</span><span>10%</span>
+        <span style="color:#c9c4c9;">Convex</span><span>17%</span>
+        <span style="color:#c9c4c9;">Instadapp Lite, Acre</span><span>20%</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-label="Traction" data-speaker-notes="Numbers as of Nov 10, final ones follow on Nov 14. The keeper runs every 15 minutes as a public GitHub Action, and every vault transaction is on Mezo's explorer." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="grid-row:span 2;background:#f5b400;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#4d3d12;">Traction</span>
+    <h2 style="margin:28px 0 0;font-size:88px;line-height:1.02;font-weight:700;letter-spacing:-0.03em;text-wrap:balance;">Running on its own, every 15 minutes.</h2>
+    <p style="margin:40px 0 0;font-size:34px;line-height:1.4;color:#4d3d12;text-wrap:pretty;">The keeper is a public GitHub Action, and every vault transaction is on Mezo's explorer.</p>
+    <div style="margin-top:auto;display:flex;flex-wrap:wrap;gap:12px;">
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Since Oct 25</span>
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Mezo testnet</span>
+    </div>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Keeper runs</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">1,447</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Checks the vault, acts when due.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Green runs</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">99%</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Of the last 100 keeper runs.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Depositors</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">4</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Wallets that put BTC into a Feasy vault.</span>
+  </div>
+  <div style="background:#f8f3f8;border-radius:48px;padding:56px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#696669;">Vault transactions</span>
+    <span style="margin-top:auto;font-size:120px;font-weight:700;letter-spacing:-0.04em;line-height:1;">125</span>
+    <span style="margin-top:20px;font-size:28px;line-height:1.4;color:#696669;">Across six vault versions on testnet.</span>
+  </div>
+</section>
+
+<section data-label="Status and next steps" data-speaker-notes="Live on testnet, unaudited. Wave 2 shipped the four items on the right. Mainnet waits for an audit, and the spread guard already keeps a mainnet vault from borrowing while sMUSD pays less than the loan." style="box-sizing:border-box;padding:40px;background:#ede8ed;display:grid;grid-template-columns:1fr 1fr;gap:16px;font-family:'Google Sans',system-ui,sans-serif;color:#181717;">
+  <div style="background:#f5b400;border-radius:48px;padding:72px;display:flex;flex-direction:column;">
+    <span style="font-size:32px;font-weight:500;color:#4d3d12;">Status and next steps</span>
+    <h2 style="margin:28px 0 0;font-size:104px;line-height:1;font-weight:700;letter-spacing:-0.035em;text-wrap:balance;">Live on Mezo testnet.</h2>
+    <p style="margin:40px 0 0;font-size:36px;line-height:1.4;color:#4d3d12;text-wrap:pretty;">Every transaction from v1 to v8 is linked in the deployment log. Mainnet waits for an audit, and the spread guard keeps it from borrowing at a loss.</p>
+    <div style="margin-top:auto;display:flex;flex-wrap:wrap;gap:12px;">
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Vault v8</span>
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Keeper every 15 min</span>
+      <span style="background:#f7d788;color:#181717;border-radius:999px;padding:10px 24px;font-size:28px;font-weight:500;">Unaudited</span>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-rows:1fr auto;gap:16px;">
+    <div style="background:#f8f3f8;border-radius:48px;padding:56px 64px;display:flex;flex-direction:column;">
+      <span style="font-size:32px;font-weight:500;color:#696669;">Shipped in Wave 2</span>
+      <div style="margin-top:16px;display:flex;flex-direction:column;">
+        <div style="display:flex;flex-direction:column;gap:8px;padding:24px 0;border-bottom:2px solid #e1dce1;">
+          <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">Spread guard</span>
+          <span style="font-size:28px;color:#696669;">No new debt while sMUSD pays less than the loan costs</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:24px 0;border-bottom:2px solid #e1dce1;">
+          <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">Recovery Mode unwind</span>
+          <span style="font-size:28px;color:#696669;">Repays to the floor at once, closes when Mezo allows</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:24px 0;border-bottom:2px solid #e1dce1;">
+          <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">The Mezo loop</span>
+          <span style="font-size:28px;color:#696669;">sMUSD staked for MEZO, veMEZO boosting the veBTC locks</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;padding:24px 0 0;">
+          <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">Performance fee</span>
+          <span style="font-size:28px;color:#696669;">10% of profit above the previous high, capped at 20%</span>
+        </div>
+      </div>
+    </div>
+    <div style="background:#282926;color:#f8f3f8;border-radius:48px;padding:48px 64px;display:flex;flex-wrap:wrap;gap:16px 48px;align-items:center;">
+      <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">feasy.org</span>
+      <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">docs.feasy.org</span>
+      <span style="font-size:36px;font-weight:700;letter-spacing:-0.02em;">github.com/oynozan/feasy</span>
+    </div>
+  </div>
+</section>
+
+</x-import>
+</x-dc>
+</body>
+</html>
