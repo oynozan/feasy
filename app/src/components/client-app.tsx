@@ -41,7 +41,7 @@ function Shell() {
                                 <div className={`${block} min-h-[136px]`} />
                                 <div className={`${block} min-h-[136px]`} />
                                 <div className={`${block} min-h-[136px]`} />
-                                <div className={`${block} min-h-[240px] sm:col-span-2`} />
+                                <div className={`${block} min-h-[288px] sm:col-span-2`} />
                             </div>
                         </div>
                     ) : pathname === "/deposit" || pathname === "/withdraw" ? (

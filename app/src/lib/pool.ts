@@ -1,7 +1,7 @@
 "use client";
 
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import { parseAbi, zeroAddress, type Address, type Hash } from "viem";
+import { createPublicClient, http, parseAbi, zeroAddress, type Address, type Hash } from "viem";
 import { mezoTestnet } from "viem/chains";
 import { usePublicClient, useReadContracts } from "wagmi";
 import { booster, boostVoter, erc20, savingsSleeve, vault, veMezo, veSleeve, VAULT_FROM_BLOCK } from "./chain";
@@ -38,6 +38,9 @@ const multicall = {
 const events = [...vault.abi, ...poolAbi, ...savingsSleeve].filter((item) => item.type === "event");
 
 type Client = NonNullable<ReturnType<typeof usePublicClient>>;
+
+// Mezo's RPC answers a batch one call at a time, so these reads go out as parallel requests
+const history = createPublicClient({ chain: mezoTestnet, transport: http(), batch: { multicall: true } });
 
 // Mezo contracts the vault fixed at deployment, and the gas deposit a trove gets back on close
 const linksQuery = (client: Client | undefined) =>
@@ -188,6 +191,7 @@ export function useLoop() {
         loanRate: Number(loanRate ?? 0n),
         smusdShare: supply ? Number((held * 1_000_000n) / supply) / 1e6 : 0,
         stakedShare: held > 0n ? Number(((staked as bigint) * 10_000n) / held) / 1e4 : undefined,
+        staked: (staked as bigint | undefined) ?? 0n,
         mezoPending: (mezoEarned as bigint | undefined) ?? 0n,
         veMezo: id ? (results[0].result ?? 0n) : 0n,
         boosts: results.slice(1).map((r) => Number(r.result ?? 0n) / 1e18),
@@ -221,11 +225,13 @@ export function usePoolHistory() {
         // Each run re-reads every log and sample, a transaction invalidates it sooner anyway
         refetchInterval: 10 * 60_000,
         queryFn: async () => {
-            const [latest, { surplusPool }, savingsAt, feeTo] = await Promise.all([
-                client!.getBlock(),
+            const [latest, { surplusPool }, savingsAt, feeTo, queue, sleeve] = await Promise.all([
+                history.getBlock(),
                 queryClient.ensureQueryData(linksQuery(client)),
-                client!.readContract({ ...vault, functionName: "savingsSleeve" }).catch(() => undefined),
-                client!.readContract({ ...vault, functionName: "feeRecipient" }).catch(() => undefined),
+                history.readContract({ ...vault, functionName: "savingsSleeve" }).catch(() => undefined),
+                history.readContract({ ...vault, functionName: "feeRecipient" }).catch(() => undefined),
+                history.readContract({ ...vault, functionName: "queue" }).catch(() => undefined),
+                history.readContract({ ...vault, functionName: "sleeve" }).catch(() => zeroAddress),
             ]);
             // v8 sells the MEZO its sMUSD earns from the savings sleeve, so those sales list with the vault's events
             const sources = savingsAt ? [vault.address, savingsAt] : [vault.address];
@@ -237,7 +243,7 @@ export function usePoolHistory() {
             const logs = (
                 await Promise.all(
                     ranges.map(([fromBlock, toBlock]) =>
-                        client!.getLogs({ address: sources, events, fromBlock, toBlock, strict: true }),
+                        history.getLogs({ address: sources, events, fromBlock, toBlock, strict: true }),
                     ),
                 )
             ).flat();
@@ -252,7 +258,6 @@ export function usePoolHistory() {
             }
             holders.delete(zeroAddress);
             // v6 escrows queued shares at its queue, which holds them for others rather than depositing
-            const queue = await client!.readContract({ ...vault, functionName: "queue" }).catch(() => undefined);
             if (queue) holders.delete(queue.toLowerCase());
             // v8 mints its fee as shares to the booster, which is the protocol and not a depositor
             if (feeTo) holders.delete(feeTo.toLowerCase());
@@ -267,41 +272,40 @@ export function usePoolHistory() {
             const wanted = new Set([VAULT_FROM_BLOCK, ...blocks, ...logs.map((log) => log.blockNumber)]);
             const loanLogs = logs.filter((log) => log.eventName === "Rebalanced" || log.eventName === "TroveClosed");
             const before = new Map<bigint, Trove>();
-            await Promise.all([
+            const timed = Promise.all([
                 ...[...wanted]
                     .filter((blockNumber) => !times.has(blockNumber))
                     .map(async (blockNumber) => {
-                        times.set(blockNumber, Number((await client!.getBlock({ blockNumber })).timestamp));
+                        times.set(blockNumber, Number((await history.getBlock({ blockNumber })).timestamp));
                     }),
                 // The loan as it stood a block earlier, so a loan event shows what it changed
                 ...[...new Set(loanLogs.map((log) => log.blockNumber - 1n))].map(async (blockNumber) => {
                     before.set(
                         blockNumber,
-                        await client!.readContract({ ...vault, functionName: "trove", blockNumber }),
+                        await history.readContract({ ...vault, functionName: "trove", blockNumber }),
                     );
                 }),
             ]);
 
-            const sleeve = await client!.readContract({ ...vault, functionName: "sleeve" }).catch(() => zeroAddress);
             // Reads at one block share a multicall, its four oracle calls stay under Mezo's cap of twenty
-            const samples = await Promise.all(
-                blocks.map(async (blockNumber): Promise<PoolSample> => {
+            const read = Promise.all(
+                blocks.map(async (blockNumber) => {
                     const [assets, perShare, trove, idle, surplus, locked] = await Promise.all([
-                        client!.readContract({ ...vault, functionName: "totalAssets", blockNumber }),
-                        client!.readContract({
+                        history.readContract({ ...vault, functionName: "totalAssets", blockNumber }),
+                        history.readContract({
                             ...vault,
                             functionName: "convertToAssets",
                             args: [ONE_SHARE],
                             blockNumber,
                         }),
-                        client!.readContract({ ...vault, functionName: "trove", blockNumber }),
-                        client!.readContract({
+                        history.readContract({ ...vault, functionName: "trove", blockNumber }),
+                        history.readContract({
                             ...multicall,
                             functionName: "getEthBalance",
                             args: [vault.address],
                             blockNumber,
                         }),
-                        client!.readContract({
+                        history.readContract({
                             address: surplusPool,
                             abi: surplusAbi,
                             functionName: "getCollateral",
@@ -310,7 +314,7 @@ export function usePoolHistory() {
                         }),
                         sleeve === zeroAddress
                             ? 0n
-                            : client!
+                            : history
                                   .readContract({
                                       address: sleeve,
                                       abi: veSleeve,
@@ -319,13 +323,15 @@ export function usePoolHistory() {
                                   })
                                   .catch(() => 0n),
                     ]);
-                    return {
-                        time: times.get(blockNumber)!,
-                        perShare,
-                        parts: split(assets, trove.coll, idle + surplus, locked),
-                    };
+                    return { blockNumber, perShare, parts: split(assets, trove.coll, idle + surplus, locked) };
                 }),
             );
+            // The samples read alongside the block times, and take their time once both are in
+            const [, reads] = await Promise.all([timed, read]);
+            const samples: PoolSample[] = reads.map(({ blockNumber, ...sample }) => ({
+                time: times.get(blockNumber)!,
+                ...sample,
+            }));
 
             const closed = new Set(
                 logs.filter((log) => log.eventName === "TroveClosed").map((log) => log.transactionHash),

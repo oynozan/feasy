@@ -11,6 +11,7 @@ import {
     BoltIcon,
     CheckIcon,
     ReceiptPercentIcon,
+    RocketLaunchIcon,
     ScaleIcon,
     SparklesIcon,
 } from "@heroicons/react/16/solid";
@@ -23,7 +24,7 @@ import { btcParts, formatBtc, LIQUIDATION_CR, loanState, priceAtRatio, ratioOf, 
 import { flow, pop, rise, springy } from "@/lib/motion";
 import { useLoop, usePoolHistory, usePoolState, type Borrowing, type PoolEvent, type PoolSample } from "@/lib/pool";
 import { cn } from "@/lib/utils";
-import { Block, BlockHeader, BlockLabel, CloseButton, Eyebrow, FigureRow, InfoTip, Reveal } from "../block";
+import { Block, BlockHeader, BlockLabel, Chip, CloseButton, Eyebrow, FigureRow, InfoTip, Reveal } from "../block";
 import { Wordmark } from "../frame";
 import { yieldTip } from "./yield";
 
@@ -44,6 +45,7 @@ const thursday = new Intl.DateTimeFormat(undefined, {
 });
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const whole = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const list = new Intl.ListFormat("en-US", { type: "conjunction" });
 const percent = (value: number, digits = 0) =>
     value.toLocaleString("en-US", { style: "percent", maximumFractionDigits: digits });
 // A true minus like the activity list, Intl's own sign is a hyphen
@@ -592,7 +594,7 @@ function Ledger({
     const shown = loop ? pane : "activity";
 
     return (
-        <Block className="h-[240px] pb-0 sm:col-span-2 lg:h-full">
+        <Block className="h-[288px] pb-0 sm:col-span-2 lg:h-full">
             <BlockHeader>
                 {loop ? (
                     <div className="flex items-center gap-1.5">
@@ -602,19 +604,29 @@ function Ledger({
                 ) : (
                     <BlockLabel tip={activityTip}>Pool activity</BlockLabel>
                 )}
+                <AnimatePresence>
+                    {shown === "loop" && loop && <LoopState key="state" borrowing={loop.borrowing} />}
+                </AnimatePresence>
             </BlockHeader>
             <div className="relative -mx-3 mt-3 min-h-0 flex-1">
-                <div className="absolute inset-0 overflow-y-auto pb-10 [mask-image:linear-gradient(to_bottom,black_calc(100%-40px),transparent)] [scrollbar-width:none]">
+                <div
+                    className={cn(
+                        "absolute inset-0 overflow-y-auto [scrollbar-width:none]",
+                        shown === "activity" &&
+                            "pb-10 [mask-image:linear-gradient(to_bottom,black_calc(100%-40px),transparent)]",
+                    )}
+                >
                     <AnimatePresence mode="popLayout" initial={false}>
                         <motion.div
                             key={shown}
+                            className={shown === "loop" ? "h-full" : undefined}
                             initial={{ opacity: 0, y: 16 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -8, transition: { duration: 0.12 } }}
                             transition={rise}
                         >
                             {shown === "loop" && loop ? (
-                                <LoopList loop={loop} mezoHarvested={mezoHarvested ?? 0n} />
+                                <LoopTrack loop={loop} mezoHarvested={mezoHarvested ?? 0n} />
                             ) : (
                                 <ActivityList activity={activity} failed={failed} />
                             )}
@@ -637,7 +649,7 @@ function PaneToggle({ value, onChange }: { value: Pane; onChange: (next: Pane) =
                     aria-selected={value === option}
                     onClick={() => onChange(option)}
                     className={cn(
-                        "relative flex h-7 items-center rounded-full px-3.5 text-[13px] font-medium transition-colors",
+                        "relative flex h-7 items-center rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors",
                         value === option ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                     )}
                 >
@@ -698,97 +710,154 @@ function ActivityList({ activity, failed }: { activity: PoolEvent[] | undefined;
 type Loop = NonNullable<ReturnType<typeof useLoop>>;
 
 const borrowingWord: Record<Borrowing, string> = {
-    on: "On",
-    waiting: "Waiting",
-    paused: "Paused",
-    off: "Off",
-    closing: "Closing",
+    on: "Borrowing on",
+    waiting: "Borrowing waits",
+    paused: "Borrowing paused",
+    off: "Borrowing off",
+    closing: "Loan closing",
 };
-
-function feeText(loop: Loop) {
-    if (loop.nextFeeAt > 0 && loop.nextFee !== loop.fee)
-        return `${percent(loop.nextFee / 1e4)} from ${day.format(loop.nextFeeAt * 1000)}`;
-    return loop.fee > 0 ? percent(loop.fee / 1e4) : "None";
-}
 
 function loopTip(loop: Loop) {
     const state = {
-        on: "",
+        on: " Right now they do.",
         waiting: " Borrowing waits for a day of savings history, so the savings rate can be measured first.",
         paused: " Borrowing is paused because the savings pay less than the loan costs.",
         off: " Borrowing is turned off.",
         closing: " Mezo is in Recovery Mode, so the pool is paying its loan down and closes it once Mezo allows.",
     }[loop.borrowing];
+    const share = loop.smusdShare > 0 ? `, where it holds ${percent(loop.smusdShare, 2)} of all sMUSD` : "";
+    const staked = loop.stakedShare === undefined ? "Part" : percent(loop.stakedShare);
+    const boosts =
+        loop.boosts.length > 0 ? `, now ${list.format(loop.boosts.map((boost) => `${boost.toFixed(2)}×`))}` : "";
     const fee =
         loop.nextFeeAt > 0 && loop.nextFee !== loop.fee
             ? ` From ${day.format(loop.nextFeeAt * 1000)} Feasy keeps ${percent(loop.nextFee / 1e4)} of the profit, never on a loss or on earning one back.`
             : loop.fee > 0
               ? ` Feasy keeps ${percent(loop.fee / 1e4)} of the profit, never on a loss or on earning one back.`
               : "";
-    return `The pool borrows MUSD against its BTC and keeps it in Mezo’s savings vault as sMUSD, and it only borrows while the savings pay more than the loan costs. Part of the sMUSD is staked in Mezo’s sMUSD gauge, which pays MEZO. The MEZO is sold for BTC or locked as veMEZO, which boosts the pool’s own veBTC locks.${state}${fee}`;
+    return `The pool borrows MUSD against its BTC and keeps it in Mezo’s savings vault${share}. It only borrows while the savings pay more than the loan costs.${state} ${staked} of its sMUSD is staked in Mezo’s sMUSD gauge, which pays MEZO. The MEZO is sold for BTC or locked as veMEZO, which boosts the pool’s own veBTC locks${boosts}.${fee}`;
 }
 
-function LoopList({ loop, mezoHarvested }: { loop: Loop; mezoHarvested: bigint }) {
+// Whether the loop is running, its dot pulsing while the pool borrows
+function LoopState({ borrowing }: { borrowing: Borrowing }) {
+    const on = borrowing === "on";
+    return (
+        <Chip>
+            <span className="relative grid size-2 place-items-center">
+                {on && (
+                    <motion.span
+                        className="absolute inset-0 rounded-full bg-gold"
+                        animate={{ scale: [1, 2.6], opacity: [0.7, 0] }}
+                        transition={{ duration: 1.6, ease: "easeOut", repeat: Infinity }}
+                    />
+                )}
+                <span
+                    className={cn(
+                        "relative size-2 rounded-full",
+                        on ? "bg-gold" : borrowing === "closing" ? "bg-danger" : "bg-muted-foreground/50",
+                    )}
+                />
+            </span>
+            <span className="sr-only sm:not-sr-only">{borrowingWord[borrowing]}</span>
+        </Chip>
+    );
+}
+
+// The lowest to the highest boost, one figure when they match
+function boostRange(boosts: number[]) {
+    if (boosts.length === 0) return "—";
+    const ends = new Set([Math.min(...boosts), Math.max(...boosts)].map((boost) => boost.toFixed(2)));
+    return `${[...ends].join("–")}×`;
+}
+
+const unit = "ml-1 text-[13px] font-normal tracking-normal text-muted-foreground";
+
+// The loop's four stops on one track, MUSD running along it while the pool borrows
+function LoopTrack({ loop, mezoHarvested }: { loop: Loop; mezoHarvested: bigint }) {
     const { data } = useVault();
     const mezo = Number(mezoHarvested + loop.mezoPending) / 1e18;
     const rate = (bps: number) => (
         <NumberFlow {...flow} value={bps / 1e4} format={{ style: "percent", maximumFractionDigits: 2 }} />
     );
-    return (
-        <div className="grid gap-x-8 px-3 text-[15px] leading-7 sm:grid-cols-2">
-            <dl className="grid grid-cols-[1fr_auto] gap-x-3">
-                <Fact label="Borrowing">{borrowingWord[loop.borrowing]}</Fact>
-                <Fact label="Savings rate">{loop.savingsRate > 0 ? rate(loop.savingsRate) : "—"}</Fact>
-                <Fact label="Loan rate">{rate(loop.loanRate)}</Fact>
-                <Fact label="Savings">
-                    <NumberFlow
-                        {...flow}
-                        value={Number(data?.savings ?? 0n) / 1e18}
-                        format={{ maximumFractionDigits: 0 }}
-                        suffix=" MUSD"
-                    />
-                </Fact>
-                <Fact label="Share of sMUSD">
-                    <NumberFlow
-                        {...flow}
-                        value={loop.smusdShare}
-                        format={{ style: "percent", maximumFractionDigits: 2 }}
-                    />
-                </Fact>
-            </dl>
-            <dl className="grid grid-cols-[1fr_auto] gap-x-3">
-                <Fact label="Staked in gauge">
-                    {loop.stakedShare === undefined ? (
-                        "—"
-                    ) : (
-                        <NumberFlow
-                            {...flow}
-                            value={loop.stakedShare}
-                            format={{ style: "percent", maximumFractionDigits: 0 }}
-                        />
-                    )}
-                </Fact>
-                <Fact label="MEZO earned">
-                    <NumberFlow {...flow} value={mezo} format={{ maximumFractionDigits: mezo < 100 ? 2 : 0 }} />
-                </Fact>
-                <Fact label="veMEZO">
-                    <NumberFlow {...flow} value={Number(loop.veMezo) / 1e18} format={{ maximumFractionDigits: 0 }} />
-                </Fact>
-                <Fact label="Boost">
-                    {loop.boosts.length > 0 ? loop.boosts.map((boost) => `${boost.toFixed(2)}×`).join(" · ") : "—"}
-                </Fact>
-                <Fact label="Fee">{feeText(loop)}</Fact>
-            </dl>
-        </div>
+    const musd = (wei: bigint | undefined, suffix: string) => (
+        <NumberFlow {...flow} value={Number(wei ?? 0n) / 1e18} format={{ maximumFractionDigits: 0 }} suffix={suffix} />
     );
-}
+    const stops = [
+        { icon: BanknotesIcon, label: "Loan", figure: rate(loop.loanRate), sub: musd(data?.trove.debt, " MUSD") },
+        {
+            icon: SparklesIcon,
+            label: "Savings",
+            earns: true,
+            figure: loop.savingsRate > 0 ? rate(loop.savingsRate) : "—",
+            sub: musd(data?.savings, " MUSD"),
+        },
+        {
+            icon: BoltIcon,
+            label: "Gauge",
+            earns: true,
+            figure: (
+                <>
+                    <NumberFlow {...flow} value={mezo} format={{ maximumFractionDigits: mezo < 100 ? 2 : 0 }} />
+                    <span className={unit}>MEZO</span>
+                </>
+            ),
+            sub: musd(loop.staked, " sMUSD"),
+        },
+        {
+            icon: RocketLaunchIcon,
+            label: "Boost",
+            figure: (
+                <>
+                    <NumberFlow {...flow} value={Number(loop.veMezo) / 1e18} format={{ maximumFractionDigits: 0 }} />
+                    <span className={unit}>veMEZO</span>
+                </>
+            ),
+            sub: boostRange(loop.boosts),
+        },
+    ];
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
     return (
-        <>
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right font-medium whitespace-nowrap tabular-nums">{children}</dd>
-        </>
+        <div className="flex h-full items-start px-3 sm:items-center">
+            <ol className="relative grid w-full gap-y-3 sm:grid-cols-4 sm:gap-y-0">
+                <li
+                    aria-hidden="true"
+                    className="absolute top-5 bottom-5 left-[15px] w-0.5 overflow-hidden rounded-full bg-secondary sm:inset-x-[12.5%] sm:top-[15px] sm:bottom-auto sm:h-0.5 sm:w-auto"
+                >
+                    {loop.borrowing === "on" && <span className="flow absolute inset-0" />}
+                </li>
+                {stops.map(({ icon: Icon, label, earns, figure, sub }, i) => (
+                    <motion.li
+                        key={label}
+                        className="relative grid h-10 grid-cols-[32px_1fr_auto] items-center gap-x-3 sm:flex sm:h-auto sm:min-w-0 sm:flex-col sm:px-1 sm:text-center"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ ...rise, delay: i * 0.05 }}
+                    >
+                        <motion.span
+                            className={cn(
+                                "grid size-8 place-items-center rounded-full",
+                                earns ? "bg-highlight" : "bg-secondary",
+                            )}
+                            whileHover={{ scale: 1.12 }}
+                            transition={springy}
+                        >
+                            <Icon className="size-4" />
+                        </motion.span>
+                        <span className="text-[15px] leading-5 text-muted-foreground sm:mt-3 sm:text-[13px] sm:leading-4">
+                            {label}
+                        </span>
+                        <span className="text-right sm:mt-2 sm:text-center">
+                            <span className="block text-[18px] leading-6 font-medium tracking-[-0.01em] whitespace-nowrap tabular-nums sm:text-[22px] sm:leading-7">
+                                {figure}
+                            </span>
+                            <span className="block text-[13px] leading-4 whitespace-nowrap text-muted-foreground tabular-nums sm:leading-5">
+                                {sub}
+                            </span>
+                        </span>
+                    </motion.li>
+                ))}
+            </ol>
+        </div>
     );
 }
 

@@ -129,22 +129,47 @@
             color-mix(in oklab, var(--white) 70%, transparent) 50%,
             transparent 70%
         )
-        var(--secondary);
+        no-repeat var(--secondary);
     background-size: 220% 100%;
     animation: shimmer 1.6s ease-in-out infinite;
 }
 
+/* The band enters from off the left and leaves off the right, so no cycle cuts one short */
 @keyframes shimmer {
     from {
-        background-position: 120% 0;
+        background-position: 130% 0;
     }
     to {
-        background-position: -100% 0;
+        background-position: -30% 0;
+    }
+}
+
+/* A glow running along the Mezo loop's track, down it on phones and across it from sm up */
+.flow {
+    background: linear-gradient(180deg, transparent, var(--gold), transparent) no-repeat;
+    background-size: 100% 30%;
+    animation: flow 2.4s ease-in-out infinite;
+}
+
+@media (width >= 40rem) {
+    .flow {
+        background-image: linear-gradient(90deg, transparent, var(--gold), transparent);
+        background-size: 30% 100%;
+    }
+}
+
+@keyframes flow {
+    from {
+        background-position: -50% -50%;
+    }
+    to {
+        background-position: 150% 150%;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .shimmer {
+    .shimmer,
+    .flow {
         animation: none;
     }
 }
