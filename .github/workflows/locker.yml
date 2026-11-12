@@ -1,0 +1,29 @@
+# The liquid locker's upkeep every six hours, every call in it is open to anyone and safe to repeat
+name: locker
+
+on:
+    schedule:
+        - cron: "17 */6 * * *"
+    workflow_dispatch:
+
+concurrency:
+    group: locker
+    cancel-in-progress: false
+
+jobs:
+    locker:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        env:
+            LOCKER_PK: ${{ secrets.KEEPER_PK }}
+            # env.sh reads it on load, CI has no .env to fall back on
+            KEEPER_PK: ${{ secrets.KEEPER_PK }}
+        steps:
+            # Without the secret every step skips, so the schedule never fails before the key is added
+            - uses: actions/checkout@v4
+              if: env.LOCKER_PK != ''
+            - uses: foundry-rs/foundry-toolchain@v1
+              if: env.LOCKER_PK != ''
+            - name: Roll, open boost gauges, boost and harvest
+              if: env.LOCKER_PK != ''
+              run: bash scripts/locker.sh all

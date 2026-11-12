@@ -40,7 +40,7 @@ const thursday = new Intl.DateTimeFormat(undefined, {
 });
 
 type Source = "btc" | "tbtc";
-type Connect = { label: string; run: () => void } | undefined;
+export type Connect = { label: string; run: () => void } | undefined;
 
 export function Deposit() {
     const { address, isConnected } = useAccount();
@@ -304,12 +304,14 @@ type AmountFormProps = {
           }
         | false;
     initial?: string;
+    // Decimals the wallet amount and Max show, BTC keeps whole satoshis
+    decimals?: number;
     tx: TxState;
     onEdit: () => void;
     onSubmit: (amount: bigint) => Promise<boolean>;
 };
 
-function AmountForm({
+export function AmountForm({
     title,
     source,
     unit,
@@ -324,6 +326,7 @@ function AmountForm({
     connect,
     overflow,
     initial,
+    decimals = 8,
     tx,
     onEdit,
     onSubmit,
@@ -428,14 +431,14 @@ function AmountForm({
                                 <Eyebrow className="mt-2">
                                     <span>{source}</span>
                                     <span className="text-foreground tabular-nums">
-                                        {max === undefined || connect ? "–" : `${formatBtc(max)} ${unit}`}
+                                        {max === undefined || connect ? "–" : `${formatBtc(max, decimals)} ${unit}`}
                                     </span>
                                     {!connect && !!max && (
                                         <Press className="ml-auto">
                                             <button
                                                 type="button"
                                                 disabled={working}
-                                                onClick={() => edit(formatBtc(max))}
+                                                onClick={() => edit(formatBtc(max, decimals))}
                                                 className="h-6 rounded-full bg-card px-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                                             >
                                                 Max
@@ -473,7 +476,7 @@ function AmountForm({
     );
 }
 
-function TxSteps({ tx, done }: { tx: TxState; done: string }) {
+export function TxSteps({ tx, done }: { tx: TxState; done: string }) {
     const hash = tx.status === "pending" || tx.status === "done" || tx.status === "error" ? tx.hash : undefined;
     return (
         <Steps

@@ -15,6 +15,8 @@ The live vault is v8 on Mezo testnet, chain id 31611. All six of its contracts a
 | Owner | [`0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6`](https://explorer.test.mezo.org/address/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6), a 24-hour timelock |
 | Guardian | `0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE` |
 | Keeper | `0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23`, the GitHub Action |
+| [Liquid veBTC](/liquid-locker), fveBTC | [`0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F`](https://explorer.test.mezo.org/address/0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F) |
+| [Liquid veBTC](/liquid-locker), fveMEZO | [`0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385`](https://explorer.test.mezo.org/address/0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385) |
 
 The vault creates the queue and the veBTC sleeve. The savings sleeve is deployed just before the vault, at the vault's predicted address, and the booster right after. All their settings belong to the vault's owner. v8 started at block 16686260.
 
@@ -39,6 +41,9 @@ The app shows a Move row for anyone with shares in a retired vault, and an Exit 
 | [`Booster.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/Booster.sol) | The veMEZO lock, the boost votes and the fee shares |
 | [`ProfitLock.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/ProfitLock.sol) | The 7-day linear profit release |
 | [`SystemMath.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/SystemMath.sol) | Mezo system ratio math, linked to keep the vault under the size limit |
+| [`BtcLocker.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/BtcLocker.sol) | fveBTC, the open veBTC ladder, its exit queue and income split |
+| [`MezoLocker.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/MezoLocker.sol) | fveMEZO, the permanent veMEZO lock that boosts the ladder |
+| [`LockerRewards.sol`](https://github.com/oynozan/feasy/blob/main/contracts/src/LockerRewards.sol) | The week-long BTC and MUSD streams both tokens pay |
 
 ## Mezo contracts used
 

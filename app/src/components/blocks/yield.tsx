@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import NumberFlow from "@number-flow/react";
-import { ArrowRightIcon, BookOpenIcon, ChartBarIcon } from "@heroicons/react/20/solid";
+import { BookOpenIcon, ChartBarIcon, LockClosedIcon } from "@heroicons/react/20/solid";
 import { AnimatePresence, motion } from "motion/react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useVault, useYield } from "@/lib/hooks";
@@ -73,15 +73,14 @@ export function PoolSize() {
 
 // Half a tile tall, the gold pool link and a square docs link that opens to its label
 export function PoolStats() {
-    const [docs, setDocs] = useState(false);
+    const [open, setOpen] = useState<"lock" | "docs" | null>(null);
     return (
         <div className="flex shrink-0 gap-1.5 lg:h-[68px]">
-            {/* Both tiles start from a square, whichever is not open stays one and the other takes the rest */}
+            {/* Every tile starts square, the open one takes the rest, Pool stats otherwise */}
             <motion.div
                 className="min-w-0 basis-[68px]"
                 initial={false}
-                animate={{ flexGrow: docs ? 0 : 1 }}
-                whileHover="hover"
+                animate={{ flexGrow: open ? 0 : 1 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ default: glide, scale: springy }}
             >
@@ -94,56 +93,92 @@ export function PoolStats() {
                         aria-hidden="true"
                         className="overflow-hidden"
                         initial={false}
-                        animate={{ opacity: docs ? 0 : 1, width: docs ? 0 : "auto" }}
-                        transition={{ width: glide, opacity: docs ? fadeOut : fadeIn }}
+                        animate={{ opacity: open ? 0 : 1, width: open ? 0 : "auto" }}
+                        transition={{ width: glide, opacity: open ? fadeOut : fadeIn }}
                     >
                         Pool stats
                     </motion.span>
-                    {/* Squared up beside the docs, the tile says what it opens with a chart instead of an arrow */}
+                    {/* Squared up beside an open tile it shows a chart, at rest its label fills it */}
                     <AnimatePresence mode="popLayout" initial={false}>
-                        <motion.span
-                            key={docs ? "chart" : "arrow"}
-                            className="shrink-0"
-                            variants={{ hover: { x: docs ? 0 : 5 } }}
-                            initial={{ opacity: 0, scale: 0.4, rotate: -45 }}
-                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                            exit={{ opacity: 0, scale: 0.4, rotate: 45 }}
-                            transition={springy}
-                        >
-                            {docs ? <ChartBarIcon className="size-5" /> : <ArrowRightIcon className="size-5" />}
-                        </motion.span>
+                        {open && (
+                            <motion.span
+                                key="chart"
+                                className="shrink-0"
+                                initial={{ opacity: 0, scale: 0.4, rotate: -45 }}
+                                animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                                exit={{ opacity: 0, scale: 0.4, rotate: 45 }}
+                                transition={springy}
+                            >
+                                <ChartBarIcon className="size-5" />
+                            </motion.span>
+                        )}
                     </AnimatePresence>
                 </Link>
             </motion.div>
-            <motion.div
-                className="min-w-0 basis-[68px] overflow-hidden rounded-block bg-card"
-                initial={false}
-                animate={{ flexGrow: docs ? 1 : 0 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ default: glide, scale: springy }}
-                onHoverStart={() => setDocs(true)}
-                onHoverEnd={() => setDocs(false)}
-            >
-                <Link
-                    href="https://docs.feasy.org"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Documentation"
-                    onFocus={() => setDocs(true)}
-                    onBlur={() => setDocs(false)}
-                    className="flex h-full min-h-[68px] items-center gap-2 px-6 text-base font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
-                >
-                    <BookOpenIcon className="size-5 shrink-0" />
-                    <motion.span
-                        aria-hidden="true"
-                        animate={{ opacity: docs ? 1 : 0, x: docs ? 0 : -8 }}
-                        transition={{ x: glide, opacity: docs ? fadeIn : fadeOut }}
-                    >
-                        Documentation
-                    </motion.span>
-                </Link>
-            </motion.div>
+            <OpenTile
+                href="/lock"
+                label="veBTC"
+                icon={<LockClosedIcon className="size-5 shrink-0" />}
+                open={open === "lock"}
+                onOpen={(on) => setOpen(on ? "lock" : null)}
+            />
+            <OpenTile
+                href="https://docs.feasy.org"
+                external
+                label="Docs"
+                icon={<BookOpenIcon className="size-5 shrink-0" />}
+                open={open === "docs"}
+                onOpen={(on) => setOpen(on ? "docs" : null)}
+            />
         </div>
+    );
+}
+
+// A square icon tile that widens to show its label while it is hovered or focused
+function OpenTile({
+    href,
+    external,
+    label,
+    icon,
+    open,
+    onOpen,
+}: {
+    href: string;
+    external?: boolean;
+    label: string;
+    icon: ReactNode;
+    open: boolean;
+    onOpen: (open: boolean) => void;
+}) {
+    return (
+        <motion.div
+            className="min-w-0 basis-[68px] overflow-hidden rounded-block bg-card"
+            initial={false}
+            animate={{ flexGrow: open ? 1 : 0 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ default: glide, scale: springy }}
+            onHoverStart={() => onOpen(true)}
+            onHoverEnd={() => onOpen(false)}
+        >
+            <Link
+                href={href}
+                target={external ? "_blank" : undefined}
+                rel={external ? "noreferrer" : undefined}
+                aria-label={label}
+                onFocus={() => onOpen(true)}
+                onBlur={() => onOpen(false)}
+                className="flex h-full min-h-[68px] items-center gap-2 px-6 text-base font-medium whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:text-foreground"
+            >
+                {icon}
+                <motion.span
+                    aria-hidden="true"
+                    animate={{ opacity: open ? 1 : 0, x: open ? 0 : -8 }}
+                    transition={{ x: glide, opacity: open ? fadeIn : fadeOut }}
+                >
+                    {label}
+                </motion.span>
+            </Link>
+        </motion.div>
     );
 }
 

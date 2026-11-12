@@ -9,6 +9,7 @@ import { Activity, HowItWorks } from "./blocks/activity";
 import { Deposit, Withdraw } from "./blocks/amount";
 import { Balance } from "./blocks/balance";
 import { Loan } from "./blocks/loan";
+import { LockView } from "./blocks/lock";
 import { PoolView } from "./blocks/pool";
 import { PoolSize, PoolStats, Yield } from "./blocks/yield";
 import { Frame } from "./frame";
@@ -34,12 +35,16 @@ export function Dashboard() {
     return (
         <MotionConfig reducedMotion="user">
             <Frame
-                left={pathname === "/pool" ? undefined : <Balance />}
+                left={pathname === "/pool" || pathname === "/lock" ? undefined : <Balance />}
                 right={
                     <AnimatePresence mode="popLayout" initial={false}>
                         {pathname === "/pool" ? (
                             <View key="pool">
                                 <PoolView />
+                            </View>
+                        ) : pathname === "/lock" ? (
+                            <View key="lock">
+                                <LockView />
                             </View>
                         ) : pathname === "/deposit" ? (
                             <View key="deposit" family>

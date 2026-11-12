@@ -14,6 +14,7 @@ import {
     SwitchChainError,
     UserRejectedRequestError,
     zeroAddress,
+    type Abi,
     type Address,
     type Block,
     type Hash,
@@ -548,7 +549,9 @@ type VaultCall =
     | { functionName: "redeem"; args: readonly [bigint, Address, Address]; at: Address }
     // v6 sends exit requests and claims to its queue contract instead
     | { functionName: "requestRedeem"; args: readonly [bigint, Address, Address]; queue: Address }
-    | { functionName: "claim"; args: readonly [readonly bigint[]]; queue: Address };
+    | { functionName: "claim"; args: readonly [readonly bigint[]]; queue: Address }
+    // Any other contract, the locker and the tokens and locks it takes among them
+    | { target: { address: Address; abi: Abi }; functionName: string; args: readonly unknown[]; value?: bigint };
 
 class Failed extends Error {}
 
@@ -582,13 +585,19 @@ function useTxState() {
         setState({ status: "wallet" });
         let hash: Hash | undefined;
         try {
-            const { queue, at, ...rest } = { queue: undefined, at: undefined, ...call } as VaultCall & {
+            const {
+                queue,
+                at,
+                target: other,
+                ...rest
+            } = { queue: undefined, at: undefined, target: undefined, ...call } as VaultCall & {
                 queue?: Address;
                 at?: Address;
+                target?: { address: Address; abi: Abi };
             };
-            const target = queue
-                ? { address: queue, abi: redeemQueue }
-                : { address: at ?? vault.address, abi: vault.abi };
+            const target =
+                other ??
+                (queue ? { address: queue, abi: redeemQueue } : { address: at ?? vault.address, abi: vault.abi });
             // VaultCall already pins each call's shape, viem just cannot narrow the union
             const request = { ...target, ...rest, account: address } as Parameters<typeof client.simulateContract>[0];
             // Mezo's gas estimate drops revert data while eth_call keeps it, so a doomed call fails here with its reason
@@ -596,7 +605,7 @@ function useTxState() {
             if (isBitcoinWallet(connector)) {
                 // OrangeKit signs with the Bitcoin wallet and relays through its smart account, writeContract skips that
                 const data = encodeFunctionData(request as Parameters<typeof encodeFunctionData>[0]);
-                const sent = await sendFromBitcoin(target.address, "value" in call ? call.value : 0n, data);
+                const sent = await sendFromBitcoin(target.address, ("value" in call ? call.value : undefined) ?? 0n, data);
                 if (!sent) throw new Failed("Reconnect your Bitcoin wallet and try again.");
                 hash = sent.hash;
             } else {
@@ -612,7 +621,7 @@ function useTxState() {
             const ran = receipt.logs.some((log) =>
                 [target.address, vault.address].some((to) => log.address.toLowerCase() === to.toLowerCase()),
             );
-            if (receipt.status !== "success" || !ran) throw new Failed("The vault call didn't go through.");
+            if (receipt.status !== "success" || !ran) throw new Failed("The transaction didn't go through.");
             setState({ status: "done", hash });
             return true;
         } catch (error) {
@@ -640,6 +649,16 @@ const REVERTS: Record<string, string> = {
     ZeroShares: "That amount is too small.",
     BadReceiver: "That address can't receive BTC from the pool.",
     BadParams: "That request can't be claimed.",
+    TooSmall: "That amount is too small.",
+    Paused: "Locking is paused right now.",
+    NoRung: "No Feasy lock runs as long as this one yet, try again after Thursday's roll.",
+    RebatePending: "Mezo hasn't paid this week's rebates yet, try again in a few hours.",
+    Ended: "That lock has ended, withdraw it in Mezo instead.",
+    Voted: "This lock is voting, reset its votes in Mezo first.",
+    BadLock: "Only a lock that hasn't ended and isn't permanent can come in.",
+    Permanent: "Unlock it from permanent in Mezo first, it stays locked for its full term.",
+    NoLock: "Lock some MEZO first.",
+    LowGas: "The wallet gave it too little gas, try again.",
 };
 
 function errorState(error: unknown): TxState {

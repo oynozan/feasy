@@ -369,7 +369,7 @@ function PoolChart({
 
 /* Tiles */
 
-function Tile({
+export function Tile({
     label,
     tip,
     ready,

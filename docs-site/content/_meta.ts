@@ -8,6 +8,7 @@ export default {
     "vebtc-sleeve": "veBTC sleeve",
     "mezo-loop": "Savings sleeve and MEZO",
     "recovery-mode": "Recovery Mode unwind",
+    "liquid-locker": "Liquid veBTC",
     roles: "Roles and keeper",
     risks: "Risks",
     testing: "Testing",

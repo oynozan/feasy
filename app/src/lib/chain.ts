@@ -147,3 +147,100 @@ export const erc20 = parseAbi([
 export const veMezo = parseAbi(["function votingPowerOfNFT(uint256 tokenId) view returns (uint256)"]);
 // A boost of 1e18 is 1x
 export const boostVoter = parseAbi(["function getBoost(uint256 tokenId) view returns (uint256)"]);
+
+/* Liquid locker */
+
+// Mezo Earn's veBTC and veMEZO, and the BoostVoter where veMEZO votes boost veBTC locks
+export const VE_BTC = "0x38E35d92E6Bfc6787272A62345856B13eA12130a";
+export const VE_MEZO = "0xaCE816CA2bcc9b12C59799dcC5A959Fb9b98111b";
+export const BOOST_VOTER = "0x21d7bDF5a5929AD179F8cA0c9014A0B62ae6Bfd1";
+export const MEZO_TOKEN = "0x7B7c000000000000000000000000000000000001";
+export const BTC_TOKEN = "0x7b7C000000000000000000000000000000000000";
+export const MUSD_TOKEN = "0x118917a40FAF1CD7a13dB0Ef56C86De7973Ac503";
+
+export const MEZO_LOCKER = "0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385";
+
+// fveBTC, the four week veBTC ladder, its exit queue and the rewards its holders earn
+export const locker = {
+    address: "0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F",
+    abi: parseAbi([
+        "function totalSupply() view returns (uint256)",
+        "function balanceOf(address) view returns (uint256)",
+        "function locked() view returns (uint256)",
+        "function idle() view returns (uint256)",
+        "function reserved() view returns (uint256)",
+        "function queued() view returns (uint256)",
+        "function filled() view returns (uint256)",
+        "function paused() view returns (bool)",
+        "function live() view returns (bool)",
+        "function boostBps() view returns (uint16)",
+        "function feeBps() view returns (uint16)",
+        "function mezoLocker() view returns (address)",
+        "function rungs(uint256 i) view returns (uint256 id, uint128 amount, uint64 end)",
+        "function earned(address token, address account) view returns (uint256)",
+        "function rewardRate(address token) view returns (uint256)",
+        "function requestsOf(address owner) view returns (uint256[])",
+        "function requests(uint256 id) view returns (address owner, uint96 amount, uint128 end, uint128 claimed)",
+        "function claimable(uint256 id) view returns (uint256)",
+        "function deposit(address receiver) payable returns (uint256)",
+        "function depositLock(uint256 id, address receiver) returns (uint256)",
+        "function requestRedeem(uint256 amount) returns (uint256)",
+        "function claimRedeem(uint256 id) returns (uint256)",
+        "function claim() returns (uint256 btcPaid, uint256 musdPaid)",
+        "event Deposited(address indexed sender, address indexed receiver, uint256 amount, uint256 veId)",
+        "event RedeemRequested(uint256 indexed id, address indexed owner, uint256 amount)",
+        "event RedeemClaimed(uint256 indexed id, address indexed owner, uint256 amount)",
+        "event Rolled(uint256 released, uint256 relocked)",
+        "event Harvested(address indexed token, uint256 income, uint256 boostCut, uint256 fee)",
+        "error TooSmall()",
+        "error Paused()",
+        "error NoRung()",
+        "error Voted()",
+        "error BadLock()",
+        "error LowGas()",
+        "error RebatePending()",
+    ]),
+} as const;
+
+// fveMEZO, one permanent veMEZO lock that boosts the ladder and takes a cut of its income
+export const mezoLocker = parseAbi([
+    "function totalSupply() view returns (uint256)",
+    "function balanceOf(address) view returns (uint256)",
+    "function veMezoId() view returns (uint256)",
+    "function earned(address token, address account) view returns (uint256)",
+    "function rewardRate(address token) view returns (uint256)",
+    "function deposit(uint256 amount, address receiver)",
+    "function depositLock(uint256 id, address receiver)",
+    "function claim() returns (uint256 btcPaid, uint256 musdPaid)",
+    "event Deposited(address indexed sender, address indexed receiver, uint256 amount, uint256 veId)",
+    "error TooSmall()",
+    "error Paused()",
+    "error Voted()",
+    "error Permanent()",
+    "error Ended()",
+    "error RebatePending()",
+    "error NoLock()",
+]);
+
+// The calls a wallet's own veBTC and veMEZO locks need before they can come in
+export const veNft = parseAbi([
+    "function balanceOf(address owner) view returns (uint256)",
+    "function ownerToNFTokenIdList(address owner, uint256 index) view returns (uint256)",
+    "function locked(uint256 id) view returns ((int128 amount, uint256 end, bool isPermanent, uint256 boost))",
+    "function voted(uint256 id) view returns (bool)",
+    "function getApproved(uint256 id) view returns (address)",
+    "function votingPowerOfNFT(uint256 id) view returns (uint256)",
+    "function approve(address spender, uint256 id)",
+    "event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)",
+]);
+
+export const token = parseAbi([
+    "function balanceOf(address) view returns (uint256)",
+    "function allowance(address owner, address spender) view returns (uint256)",
+    "function approve(address spender, uint256 amount) returns (bool)",
+]);
+
+export const boostGauges = parseAbi([
+    "function getBoost(uint256 tokenId) view returns (uint256)",
+    "function boostableTokenIdToGauge(uint256 tokenId) view returns (address)",
+]);

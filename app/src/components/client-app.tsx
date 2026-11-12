@@ -16,11 +16,12 @@ export function ClientApp() {
 function Shell() {
     const pathname = usePathname();
     const block = "h-full rounded-block bg-card p-6";
+    const stage = pathname === "/pool" || pathname === "/lock";
     return (
         <div aria-busy="true" aria-label="Loading">
             <Frame
                 left={
-                    pathname === "/pool" ? undefined : (
+                    stage ? undefined : (
                         <div data-balance="" className={block}>
                             <div className="flex h-9 items-center">
                                 <Wordmark />
@@ -29,7 +30,21 @@ function Shell() {
                     )
                 }
                 right={
-                    pathname === "/pool" ? (
+                    pathname === "/lock" ? (
+                        <div className="grid h-full gap-3 lg:grid-cols-[400px_1fr]">
+                            <div data-family="" className="flex min-h-[560px] flex-col gap-1.5 lg:min-h-0">
+                                <div className={`${block} min-h-[136px] shrink-0 lg:h-[136px]`} />
+                                <div className={`${block} flex-1`} />
+                            </div>
+                            <div data-family="" className="grid gap-1.5 sm:grid-cols-2 lg:grid-rows-[136px_136px_1fr]">
+                                <div className={`${block} min-h-[136px]`} />
+                                <div className={`${block} min-h-[136px]`} />
+                                <div className={`${block} min-h-[136px]`} />
+                                <div className={`${block} min-h-[136px]`} />
+                                <div className={`${block} min-h-[288px] sm:col-span-2`} />
+                            </div>
+                        </div>
+                    ) : pathname === "/pool" ? (
                         <div className="grid h-full gap-3 lg:grid-cols-[400px_1fr]">
                             <div className={`${block} min-h-[480px] lg:min-h-0`}>
                                 <div className="flex h-9 items-center">

@@ -1,0 +1,106 @@
+import { Callout } from "nextra/components";
+
+# Liquid veBTC
+
+Feasy's second product turns veBTC and veMEZO into tokens you can hold, send and redeem. It runs the same four-week ladder the vault's [veBTC sleeve](/vebtc-sleeve) runs, and the same permanent veMEZO lock its [booster](/mezo-loop#the-booster) runs, but open to anyone.
+
+| You bring | You get | It earns | You leave |
+| --- | --- | --- | --- |
+| BTC, or a veBTC lock you already hold | **fveBTC**, one for every BTC | Mezo's gauge fees in MUSD and the BTC rebates, boosted by veMEZO | Redeem for BTC, at most four weeks, or send fveBTC to anyone |
+| MEZO, or a veMEZO lock you already hold | **fveMEZO**, one for every MEZO | A share of everything fveBTC earns, for the boost | Hold or send fveMEZO, the MEZO stays locked for good |
+
+The contracts are [`BtcLocker`](https://github.com/oynozan/feasy/blob/main/contracts/src/BtcLocker.sol), which is fveBTC, and [`MezoLocker`](https://github.com/oynozan/feasy/blob/main/contracts/src/MezoLocker.sol), which is fveMEZO and is deployed by `BtcLocker`. Both share [`LockerRewards`](https://github.com/oynozan/feasy/blob/main/contracts/src/LockerRewards.sol).
+
+## Why it exists
+
+veBTC on Mezo earns fees and rebates, but a lock is stuck for up to 28 days and only earns its full share when someone also holds veMEZO to boost it. Most BTC holders hold no veMEZO, and most MEZO holders have no veBTC to boost. Every vote-escrow chain grew a liquid locker for this gap: Convex on Curve, Aura on Balancer, Penpie and Equilibria on Pendle. Mezo's own roadmap asks for a veNFT market, vote delegation and simpler Earn onboarding, and this is all three in one contract.
+
+## The ladder
+
+Every BTC that comes in joins the lock ending four Thursdays out, or tops it up if it already exists. So the pool holds at most four locks, one ending each of the next four Thursdays. Each lock votes all its weight for Mezo's sMUSD savings gauge.
+
+A veBTC lock you bring merges into the longest Feasy lock that ends with it or later, usually the one four Thursdays out. A lock about to end would add almost no voting weight, and merging it into the longest one makes it vote at full weight like any new BTC. Its BTC can then stay locked up to four weeks, but fveBTC redeems from whichever lock ends first, so that doesn't change when you can leave. Mezo only merges a lock that votes nowhere, so reset its votes in Mezo first. A lock's unpaid rebate is claimed into it first, and between the Thursday flip and Mezo's weekly rebate update the deposit waits, so that rebate is never burned. Permanent veBTC locks can't come in, since fveBTC has to redeem within four weeks.
+
+## The boost
+
+MEZO that comes in goes into one permanent veMEZO lock. Once an epoch anyone can call `boost()`, which votes the whole lock for the boost gauges of the live rungs, each in proportion to its unboosted weight. It waits until the week's roll has released the rung that ended and every live rung has its boost gauge, so nobody can spend the epoch's one vote before the new rung is there. Mezo's BoostVoter then multiplies each rung's voting weight, up to five times:
+
+$$
+\text{boost}_i = \min\left(5,\ 1 + 4 \cdot \frac{W}{w_i} \cdot \frac{v_i}{V}\right)
+$$
+
+$W$ is all veBTC weight, $w_i$ the rung's, $V$ all veMEZO weight and $v_i$ what the lock votes for the rung. Giving each rung veMEZO in proportion to $w_i$ gives every rung the same boost.
+
+A rung with more weight takes a larger share of the gauge's fees. fveMEZO holders are paid for that with `boostBps` of the ladder's income, 15% at launch, but never more than the share of the ladder's weight their boost really adds:
+
+$$
+\text{cut} = \min\left(\text{boostBps},\ 1 - \frac{\sum_i w_i}{\sum_i w_i \cdot \text{boost}_i}\right)
+$$
+
+So a deposit of dust MEZO that boosts nothing earns nothing. MEZO bribes the rungs earn go into the same lock.
+
+Mezo can't merge a permanent veMEZO lock, and refuses to unlock one in the same block it moves. A permanent lock you bring has to be unlocked from permanent in Mezo first.
+
+## The weekly roll
+
+`roll()` is open to anyone. For each rung it claims the gauge fees, the bribes and the BTC rebate, each on its own gas budget, the way the vault's sleeve does. A rung that ended is reset and withdrawn. Its BTC pays the redemption line first, and the rest locks again four weeks out.
+
+Everything the roll collects above what the contract already owes is income:
+
+$$
+\text{income} = \text{balance} - \text{owed} - \text{principal held}
+$$
+
+| Share | Goes to | At launch |
+| --- | --- | --- |
+| `boostBps` | fveMEZO holders | 15%, at most 30%, capped by the boost delivered |
+| `feeBps` | Feasy's treasury | 5%, at most 10% |
+| The rest | fveBTC holders | 80% |
+
+## Rewards stream over a week
+
+fveBTC and fveMEZO pay their holders in BTC and MUSD just for holding. A week's income doesn't land at once. It streams out over the seven days after it arrives, so buying in just before a roll earns a seventh a day, not the whole week. Every transfer settles both streams first, so rewards follow the token. A stream nobody holds goes back to income and streams again at the next harvest, without a second fee. Income under a tenth of what a stream still owes joins it without moving its end, so tiny donations can't stretch a payout out.
+
+Bribes in a token the streams don't carry, anything but BTC, MUSD and MEZO, are claimed too and anyone can send them on to the treasury with `sweep`, rather than letting them burn with the lock.
+
+## Redeeming
+
+Redeeming burns fveBTC and puts the BTC in line. Every Thursday the rung that ends pays the line first, before anything locks again. Every BTC sits in a rung that ends within four weeks, so a request waits four weeks at most, and usually less. A filled request is claimed with `claimRedeem`, which anyone may call and which only ever pays its owner. While locking is paused, released BTC stays liquid and pays a request at once.
+
+## Roles
+
+| Role | Can | Can't |
+| --- | --- | --- |
+| Owner | Set `boostBps`, `feeBps` and the treasury within their caps, resume deposits | Move principal, rewards or locks |
+| Guardian | Pause deposits | Resume them |
+| Anyone | Roll, open a rung's boost gauge, boost, harvest, sweep other bribe tokens, push out a filled request | |
+
+Redemptions, claims and rolls never pause. Deposits also stop on their own when Mezo Earn's wiring changes, the same `live()` check the vault's sleeve runs. A relock Mezo refuses leaves the BTC idle and paying exits, without undoing the rest of the roll.
+
+An independent review before launch found ten issues. Every one is fixed in the deployed code and covered by a test in [`Locker.t.sol`](https://github.com/oynozan/feasy/blob/main/coverage/test/Locker.t.sol), 32 tests on Mezo's own verified Earn contracts. The [Testing](/testing) page explains that suite.
+
+## Live on testnet
+
+| Contract | Address |
+| --- | --- |
+| BtcLocker, fveBTC | [`0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F`](https://explorer.test.mezo.org/address/0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F) |
+| MezoLocker, fveMEZO, veMEZO lock 949 | [`0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385`](https://explorer.test.mezo.org/address/0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385) |
+
+Every path ran on Mezo's own testnet contracts on Nov 12:
+
+| What happened | Transactions |
+| --- | --- |
+| Deployed, `BtcLocker` deploying `MezoLocker` | [`0xfcd0…8b78`](https://explorer.test.mezo.org/tx/0xfcd0faa426537a9b980ebf6a16a50f0a7f22b0af625c9e905e4230fb26238b78) |
+| BTC locked, opening veBTC lock 1740 ending Dec 10 and voting for the sMUSD gauge | [`0x968e…f060`](https://explorer.test.mezo.org/tx/0x968e1101e163f0a620079b2fad5b58ca855f39ec9c41d59ad89c46ac580bf060) |
+| A veBTC lock someone held, 1741, merged into lock 1740 for fveBTC | [`0x5f7e…451c`](https://explorer.test.mezo.org/tx/0x5f7eb44c78260db91fdf44e0854e2e7a3f1e28f3224c2dda428858e45b0b451c) |
+| MEZO locked into a new permanent veMEZO lock for fveMEZO | [`0xa7a3…7f13`](https://explorer.test.mezo.org/tx/0xa7a330ea1b133f663e2e69db58861e9385e1b9664ba03ca5b3fa7382dd437f13) |
+| A veMEZO lock someone held, 950, merged into it | [`0x0699…1903`](https://explorer.test.mezo.org/tx/0x06990dbe4f83848770988db9ae4480357f09f07b8345dedbee2a775216321903) |
+| Lock 1740's boost gauge opened, then the veMEZO voted for it, a 1.04× boost | [`0xed23…3e93`](https://explorer.test.mezo.org/tx/0xed23840d1fbd92198cb1961e56b4c6c8c1ce2233b24b30240e01551c001e3e93), [`0x37b3…e961`](https://explorer.test.mezo.org/tx/0x37b3b798d1712ea7c07b3010c61267a3d62cb5bed86015eab3eacc16ef0be961) |
+| A second wallet locked BTC and asked to redeem part of it, paid when lock 1740 ends | [`0x5f15…3e01`](https://explorer.test.mezo.org/tx/0x5f1559b5c28f6de72545bafc1d1b96abd5ec542923ed0e894b5cee67d2f63e01), [`0xb3dd…1eb7`](https://explorer.test.mezo.org/tx/0xb3ddea42abd75bdde94746efed554a876b07b5288b9f103a6424343d7e941eb7) |
+| A roll | [`0xc141…7863`](https://explorer.test.mezo.org/tx/0xc141428d5e6361b0850feea2986c3f4f199e99d7b23f038bd067279de2767863) |
+
+The 1.04× boost comes from 52.6 MEZO against testnet's 117 million veMEZO. That boost adds 4.1% of the ladder's weight, so fveMEZO's cut is 4.1% for now, not the 15% cap.
+
+<Callout type="warning">
+The locker is an unaudited MVP on Mezo testnet. Its rewards are real testnet fees and rebates, its owner is still the deployer, and it moves under the 24-hour timelock before any mainnet use.
+</Callout>

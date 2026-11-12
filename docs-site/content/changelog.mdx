@@ -2,6 +2,19 @@
 
 Every transaction behind these lines is in the [deployment log](https://github.com/oynozan/feasy/blob/main/deployments/testnet-log.md).
 
+## Liquid veBTC, Nov 12, 2026
+
+A second product, open to anyone: [Liquid veBTC](/liquid-locker). BTC or a veBTC lock comes in as fveBTC, a token that earns Mezo's gauge fees and redeems within four weeks. MEZO or a veMEZO lock comes in as fveMEZO, one permanent lock that boosts every Feasy veBTC lock and takes a share of what they earn.
+
+| What happened | Transactions |
+| --- | --- |
+| Deployed, fveBTC [`0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F`](https://explorer.test.mezo.org/address/0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F) and fveMEZO [`0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385`](https://explorer.test.mezo.org/address/0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385) | [`0xfcd0…8b78`](https://explorer.test.mezo.org/tx/0xfcd0faa426537a9b980ebf6a16a50f0a7f22b0af625c9e905e4230fb26238b78) |
+| A veBTC lock someone held merged in for fveBTC | [`0x5f7e…451c`](https://explorer.test.mezo.org/tx/0x5f7eb44c78260db91fdf44e0854e2e7a3f1e28f3224c2dda428858e45b0b451c) |
+| A veMEZO lock someone held merged in for fveMEZO | [`0x0699…1903`](https://explorer.test.mezo.org/tx/0x06990dbe4f83848770988db9ae4480357f09f07b8345dedbee2a775216321903) |
+| fveMEZO's veMEZO boosted the ladder | [`0x37b3…e961`](https://explorer.test.mezo.org/tx/0x37b3b798d1712ea7c07b3010c61267a3d62cb5bed86015eab3eacc16ef0be961) |
+
+In the app, a Lock page at [feasy.org/lock](https://feasy.org/lock) locks BTC or MEZO, brings in the locks a wallet already holds, redeems, and shows the ladder week by week with each lock's boost and what pays the exit line.
+
 ## v8, Nov 10, 2026
 
 The live vault, [`0x5e78…9Ed2`](https://explorer.test.mezo.org/address/0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2) on Mezo testnet. It has borrowed since Nov 11.
