@@ -13,4 +13,5 @@ export default {
     testing: "Testing",
     contracts: "Contracts",
     "building-on-mezo": "Building on Mezo",
+    changelog: "Changelog",
 };

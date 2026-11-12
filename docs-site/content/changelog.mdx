@@ -1,0 +1,47 @@
+# Changelog
+
+Every transaction behind these lines is in the [deployment log](https://github.com/oynozan/feasy/blob/main/deployments/testnet-log.md).
+
+## v8, Nov 10, 2026
+
+The live vault, [`0x5e78…9Ed2`](https://explorer.test.mezo.org/address/0x5e7800fB24651038e72ad1e055A2B2AD81a59Ed2) on Mezo testnet. It has borrowed since Nov 11.
+
+### New
+
+| Change | What it does |
+| --- | --- |
+| [Spread guard](/spread-guard) | No new debt while sMUSD pays less than the loan costs, measured from sMUSD's yield index |
+| [Recovery Mode unwind](/recovery-mode) | Repays to Mezo's minimum loan during Recovery Mode, then closes the loan once Mezo allows |
+| [Performance fee](/business-model) | 10% of profit above the previous high, capped at 20%. A rise waits 30 days |
+| [Savings sleeve](/mezo-loop) | Holds the sMUSD and stakes a share of it in Mezo's sMUSD gauge for MEZO |
+| [Booster](/mezo-loop#the-booster) | A permanent veMEZO lock that boosts the vault's veBTC through Mezo's BoostVoter |
+| [veBTC sleeve](/vebtc-sleeve) | Checkpoints veBTC before it collects, so a lock's rebate is never missed |
+
+### Proven on Mezo's testnet contracts
+
+| What happened | Transactions |
+| --- | --- |
+| The spread guard refused a loan while sMUSD had under a day of history | [`0xb196…d592`](https://explorer.test.mezo.org/tx/0xb196c724c091cbf231122c3bb2b2234a44aa42c560ec8dfdd18186201e62d592) |
+| The first v8 loan opened, 2,179 MUSD, once the spread was measured | [`0x1697…0b9a`](https://explorer.test.mezo.org/tx/0x1697d373f206f50d84d2621cceec8779642ecf7cd86a6efca1c48f96392f0b9a) |
+| Four ended veBTC locks of Feasy's test vaults paid out their fees and rebates and were withdrawn | [`0xf85c…e047`](https://explorer.test.mezo.org/tx/0xf85cdac3d6f81e9c6696d525a1b2e993ac73c43cd4a8e7333d2ba505868ee047), [`0x59da…c58e`](https://explorer.test.mezo.org/tx/0x59dad23bbfa15c2a3f54d8f11bc5405a00bedb9b83bef8aaf14e8ebed341c58e) |
+| The guardian unwound v7's live loan, and its holders moved to v8 | [`0xf504…938b`](https://explorer.test.mezo.org/tx/0xf504500badf0ca8da50a2ef03bd8ac0d6967e12aadba11b908d19dac6048938b) |
+| The first roll locked two veBTC rungs, and 100 MEZO became veMEZO boosting both | [`0x93ad…7faa`](https://explorer.test.mezo.org/tx/0x93ad616f527e1e2134f7cdda01bc7d509fd88891e985e604da9aa6efc7377faa), [`0xcfcf…bae6`](https://explorer.test.mezo.org/tx/0xcfcffdb1790453bb29e6e9b1d5cd06b4b6404575bf4037dac40539f0d28cbae6) |
+| The keeper moved to the GitHub Action | [`0xafd2…1d17`](https://explorer.test.mezo.org/tx/0xafd2f9a52351b74d3ac1c40064a13284f0c28683149935f35688b7a4d27a1d17) |
+| Ownership moved to the 24-hour timelock | [`0xab63…ae4a`](https://explorer.test.mezo.org/tx/0xab63897960b36e37d5366a280c70b092bfd3b02ab4c7e5c660729a0b31adae4a) |
+
+### In the app
+
+- The pool page shows the Mezo loop: whether the vault is borrowing, the loan and savings rates, the stake in the gauge, the MEZO earned, the veMEZO and each lock's boost.
+- A depositors tile, and MEZO income in the pool's activity.
+- An empty wallet gets a step to Mezo's testnet faucet.
+- The pitch deck at [feasy.org/pitch](https://feasy.org/pitch).
+
+## Earlier versions
+
+| Version | What it added |
+| --- | --- |
+| v7 | The veBTC sleeve, a four-week ladder of locks voting for the sMUSD gauge |
+| v6 | The 7-day profit unlock, the guardian and the withdrawal queue |
+| v5 | Fixes for three cases where Mezo refuses an operation, found on staging |
+
+[Contracts](/contracts) lists the retired vaults and where their holders went.
