@@ -6,8 +6,9 @@ on:
         - cron: "17 */6 * * *"
     workflow_dispatch:
 
+# The keeper's group, since both send from its wallet and would race for nonces
 concurrency:
-    group: locker
+    group: keeper
     cancel-in-progress: false
 
 jobs:
