@@ -8,7 +8,7 @@
 
 **[Pitch deck](https://feasy.org/pitch)** · **[Documentation](https://docs.feasy.org)** · **[Live contracts](#live-on-mezo-testnet)** · **[Run it](#run-it)** · **[Security](SECURITY.md)**
 
-Built for the Mezo buildathon, Track 1 (DeFi). Live on Mezo testnet.
+Feasy also runs **[Liquid veBTC](https://docs.feasy.org/liquid-locker)**. Lock BTC, or bring a veBTC lock, for fveBTC, which earns Mezo's gauge fees and BTC rebates and redeems within four weeks. Lock MEZO for fveMEZO, a permanent veMEZO lock that boosts them for a share of what they earn. Both products are live on Mezo testnet.
 
 ## How it works
 
@@ -100,6 +100,8 @@ All contracts are verified on Sourcify with exact matches.
 | Owner, 24 h timelock | [`0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6`](https://explorer.test.mezo.org/address/0x2A004C7B97Dbf8096C2331248ABc23CDBc0216d6) |
 | Guardian | [`0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE`](https://explorer.test.mezo.org/address/0x6CC622e02846f98dCD5a0b33FC35D0F751C7f6dE) |
 | Keeper | [`0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23`](https://explorer.test.mezo.org/address/0xC05D15b74943e9Ed14001f26D7F4b7db3EeA5a23), run every 15 minutes by [`keeper.yml`](.github/workflows/keeper.yml) |
+| Liquid veBTC, fveBTC | [`0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F`](https://explorer.test.mezo.org/address/0x8576C2ea77dbae1D6897d4D5834B1ae247e9032F), its transactions in [`testnet-locker-log.md`](deployments/testnet-locker-log.md) |
+| Liquid veBTC, fveMEZO and veMEZO 949 | [`0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385`](https://explorer.test.mezo.org/address/0xaE45e8B6f79Ed678dC3986EbA0871eF85cc8D385) |
 
 v8 runs a tight 2.15 / 2.20 / 2.25 band, so ordinary BTC moves make it repay from savings or borrow more on Mezo's real contracts. It has a 2% buffer, a 5% sleeve on a 4-week ladder and 20% of its sMUSD staked in the sMUSD gauge. The 10% fee rise waits its 30 days, until Dec 10. Every transaction, from v1 to the live v8, is linked in [`deployments/testnet-log.md`](deployments/testnet-log.md). v7 retired on 2026-11-10: the guardian unwound its live trove, and its holders moved to v8. Older vaults' addresses are in [contracts](https://docs.feasy.org/contracts).
 
