@@ -16,6 +16,27 @@ import { http, WagmiProvider } from "wagmi";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "@/lib/relayer";
 
+// wagmi reconnects on page load without a chain id, and OrangeKit refuses that as an unsupported network
+function reconnectable(wallet: typeof unisatWalletMezoTestnet): typeof unisatWalletMezoTestnet {
+    return () => {
+        const details = wallet();
+        return {
+            ...details,
+            createConnector: (walletDetails) => {
+                const create = details.createConnector(walletDetails);
+                return (wagmiConfig) => {
+                    const connector = create(wagmiConfig);
+                    return {
+                        ...connector,
+                        connect: (params) =>
+                            connector.connect({ ...params, chainId: params?.chainId ?? wagmiConfig.chains[0].id }),
+                    };
+                };
+            },
+        };
+    };
+}
+
 const config = getConfig({
     appName: "Feasy",
     mezoNetwork: "testnet",
@@ -23,7 +44,10 @@ const config = getConfig({
     chains: [mezoTestnet],
     walletConnectProjectId: "",
     wallets: [
-        { groupName: "Bitcoin", wallets: [unisatWalletMezoTestnet, okxWalletMezoTestnet, xverseWalletMezoTestnet] },
+        {
+            groupName: "Bitcoin",
+            wallets: [unisatWalletMezoTestnet, okxWalletMezoTestnet, xverseWalletMezoTestnet].map(reconnectable),
+        },
         { groupName: "Ethereum", wallets: [injectedWallet] },
     ],
     // Batched so the balance chart's historical reads share one request, Passport types this key wrong
